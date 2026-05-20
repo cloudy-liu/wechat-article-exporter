@@ -47,6 +47,17 @@
             @click="gotoLink(originalAlbumURL)"
             >跳转到原始链接</UButton
           >
+          <USelectMenu
+            v-model="selectedDownloadFormat"
+            :options="ALBUM_DOWNLOAD_FORMAT_OPTIONS"
+            value-attribute="value"
+            option-attribute="label"
+            color="gray"
+            size="md"
+            class="w-36"
+            :disabled="batchDownloadLoading"
+            aria-label="导出格式"
+          />
           <UButton
             color="black"
             variant="solid"
@@ -63,7 +74,7 @@
               >
               <span v-if="batchDownloadPhase === '打包'">{{ batchPackedCount }}/{{ batchDownloadedCount }}</span>
             </span>
-            <span v-else>批量下载</span>
+            <span v-else>批量下载 {{ selectedDownloadFormatLabel }}</span>
           </UButton>
         </div>
       </header>
@@ -133,6 +144,11 @@ import type { AppMsgAlbumResult, ArticleItem, BaseInfo } from '~/types/album';
 import type { AppMsgAlbumInfo, DownloadableArticle } from '~/types/types';
 import { gotoLink } from '~/utils';
 import { formatAlbumTime } from '~/utils/album';
+import {
+  ALBUM_DOWNLOAD_FORMAT_OPTIONS,
+  type AlbumDownloadFormat,
+  DEFAULT_ALBUM_DOWNLOAD_FORMAT,
+} from '~/utils/download/album-format';
 
 useHead({
   title: `合集下载 | ${websiteName}`,
@@ -291,6 +307,10 @@ const {
   download: batchDownload,
 } = useDownloadAlbum();
 const selectedArticleCount = ref(0);
+const selectedDownloadFormat = ref<AlbumDownloadFormat>(DEFAULT_ALBUM_DOWNLOAD_FORMAT);
+const selectedDownloadFormatLabel = computed(() => {
+  return ALBUM_DOWNLOAD_FORMAT_OPTIONS.find(option => option.value === selectedDownloadFormat.value)?.label || '';
+});
 
 function doBatchDownload() {
   const articles: DownloadableArticle[] = albumArticles.map(article => ({
@@ -301,7 +321,7 @@ function doBatchDownload() {
   }));
   selectedArticleCount.value = articles.length;
   const filename = downloadFileName.value;
-  batchDownload(articles, filename);
+  batchDownload(articles, filename, selectedDownloadFormat.value);
 }
 
 // 抓取全部文章链接
