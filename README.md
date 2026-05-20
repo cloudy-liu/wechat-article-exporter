@@ -16,8 +16,6 @@
 
 ### 本地部署默认走 Nitro 下载代理
 
-相关：[#175](https://github.com/wechat-article/wechat-article-exporter/pull/175)、[#169](https://github.com/wechat-article/wechat-article-exporter/issues/169)
-
 问题背景是，本地部署后浏览器端下载文章内容和资源时，部分场景仍会沿用项目内置的公开代理列表。一旦公开代理节点失效，用户虽然已经把应用跑在本地，文章内容和资源下载仍可能失败。更麻烦的是，旧版本可能已经把这些公开代理地址持久化进浏览器本地存储，例如 `preferences.privateProxyList` 或 legacy `wechat-proxy`，导致升级后仍然误判为“用户配置了私有代理”，从而继续绕过本地代理。
 
 我们在 fork 中把默认策略改为：没有真实私有代理时，浏览器下载默认使用同源 Nitro 代理。实现上会识别历史内置公开代理地址，并把它们当作旧默认值处理；如果代理列表中混有内置公开代理和用户自定义代理，则过滤掉内置项，只保留用户真正配置的私有代理。
@@ -26,8 +24,6 @@
 
 ### Markdown 导出结果更适合归档
 
-相关：[#156](https://github.com/wechat-article/wechat-article-exporter/pull/156)、[#167](https://github.com/wechat-article/wechat-article-exporter/issues/167)
-
 原始微信公众号 HTML 里混有大量运行时内容：样式块、内联 CSS、底部操作栏、SVG/data URL 图标、头像、脚本和只服务网页渲染的节点。如果直接丢给 Markdown 转换器，生成的 `.md` 很容易在开头带一大段 CSS，正文夹杂无关 UI 文本，表格和正文结构也不稳定。
 
 当前 fork 的处理思路是尽量避开完整运行时页面，优先解析 `window.cgiDataNew`，再用统一 renderer 还原文章正文结构，最后交给 Turndown 转 Markdown。已有的单篇 Markdown 修复还会在转换前清理 `<style>`、`<script>`、`<link>`、底部栏、图标、头像、空节点和样式属性，并补上评论渲染。
@@ -35,8 +31,6 @@
 目标不是复刻网页视觉效果，而是得到更干净的长期归档内容，方便后续进入脚本、笔记、全文搜索、知识库或其他自动化流程。
 
 ### 合集批量下载支持 Markdown / HTML 格式选择
-
-相关：[#166](https://github.com/wechat-article/wechat-article-exporter/issues/166)、[#167](https://github.com/wechat-article/wechat-article-exporter/issues/167)
 
 原仓库的合集页批量下载主要按 HTML 离线归档来处理，这对完整保留页面样式很有用，但对文本归档、批量阅读、AI/知识库导入和自动化采集来说偏重。另一个实际问题是，合集文章导出时需要稳定、可排序、带发布日期的文件名。
 
@@ -51,8 +45,6 @@
 具体实现集中在 `utils/download/album-format.ts`：这里定义合集下载格式类型、默认值、下拉选项和文件名构造函数。`pages/dashboard/album.vue` 负责在 UI 上绑定格式选择，`composables/useBatchDownload.ts` 根据选择走两条路径：HTML 继续调用现有资源打包逻辑，Markdown 则解析文章 HTML、渲染正文结构，再用 Turndown 写入 `.md` 文件。
 
 ### 合集导出格式增加轻量回归测试
-
-相关：[#166](https://github.com/wechat-article/wechat-article-exporter/issues/166)、[#167](https://github.com/wechat-article/wechat-article-exporter/issues/167)
 
 新增 `test/album_download_format.ts`，锁定目前支持的合集导出格式只有 `markdown` 和 `html`，并确认默认值保持为 `markdown`。这个测试很小，但能防止后续改 UI 选项或默认导出行为时无意改变归档策略。
 
