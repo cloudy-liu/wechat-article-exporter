@@ -85,6 +85,14 @@ type ArticleHtmlDownloadOutcome = {
   assetFiles: string[];
 };
 
+type ArticleExportOutcome = {
+  articleId: string;
+  sourceHtmlFile: string;
+  markdownFile?: string | null;
+  htmlFile?: string | null;
+  taskId: string;
+};
+
 const keyword = ref('');
 const message = ref('');
 const errorMessage = ref('');
@@ -261,6 +269,29 @@ async function downloadArticleHtml(article: TargetArticle) {
   }
 }
 
+async function exportArticleArchive(article: TargetArticle, format: 'markdown' | 'html') {
+  isBusy.value = true;
+  errorMessage.value = '';
+  message.value = `Exporting ${format.toUpperCase()} for ${article.title || article.article_id}`;
+
+  try {
+    const outcome = await invoke<ArticleExportOutcome>('export_article_archive', {
+      request: {
+        articleId: article.article_id,
+        formats: [format],
+      },
+    });
+    await refreshCollectionTasks();
+    const exportedFile = format === 'markdown' ? outcome.markdownFile : outcome.htmlFile;
+    message.value = `Exported ${format.toUpperCase()} to ${exportedFile || outcome.sourceHtmlFile}`;
+  } catch (error) {
+    errorMessage.value = `${formatError(error)}. Download HTML before exporting this article.`;
+    await refreshCollectionTasks();
+  } finally {
+    isBusy.value = false;
+  }
+}
+
 async function retryFailedTask(task: CollectionTask) {
   isBusy.value = true;
   errorMessage.value = '';
@@ -359,6 +390,9 @@ function formatTaskType(value: CollectionTask['task_type']): string {
   }
   if (value === 'articleHtmlDownload') {
     return 'Article HTML download';
+  }
+  if (value === 'export') {
+    return 'Export';
   }
 
   return value;
@@ -517,9 +551,27 @@ function networkProxySetting(): NetworkProxySetting | null {
             <span>{{ article.author_name || 'Unknown author' }} - {{ formatUnixTime(article.create_time) }}</span>
             <p>{{ article.digest }}</p>
           </div>
-          <button type="button" class="secondary-button" :disabled="isBusy" @click="downloadArticleHtml(article)">
-            Download HTML
-          </button>
+          <div class="article-row__actions">
+            <button type="button" class="secondary-button" :disabled="isBusy" @click="downloadArticleHtml(article)">
+              Download HTML
+            </button>
+            <button
+              type="button"
+              class="secondary-button"
+              :disabled="isBusy"
+              @click="exportArticleArchive(article, 'markdown')"
+            >
+              Export Markdown
+            </button>
+            <button
+              type="button"
+              class="secondary-button"
+              :disabled="isBusy"
+              @click="exportArticleArchive(article, 'html')"
+            >
+              Export HTML
+            </button>
+          </div>
         </article>
       </div>
       <p v-else class="empty-state">No synchronized articles loaded.</p>
