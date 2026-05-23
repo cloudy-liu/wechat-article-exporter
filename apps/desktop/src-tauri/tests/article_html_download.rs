@@ -4,7 +4,8 @@ use std::sync::{Arc, Mutex};
 
 use tempfile::tempdir;
 use wechat_article_exporter_desktop_lib::archive_store::{
-    ArchiveStore, ArchiveStoreConfig, CollectionTaskStatus, CollectionTaskType, TargetArticleInput,
+    ArchiveStore, ArchiveStoreConfig, ArchiveStoreSettings, CollectionTaskStatus,
+    CollectionTaskType, DesktopNetworkProxySetting, TargetArticleInput,
 };
 use wechat_article_exporter_desktop_lib::article_html_download::{
     ArticleHtmlDownloadClient, ArticleHtmlDownloadError, ArticleHtmlDownloadResourceRequest,
@@ -209,6 +210,57 @@ fn optional_proxy_setting_is_passed_to_outbound_requests() {
             .as_ref()
             .and_then(|proxy| proxy.authorization.as_deref()),
         Some("Bearer local-token")
+    );
+}
+
+#[test]
+fn saved_network_proxy_setting_is_used_when_download_request_has_no_proxy() {
+    let temp = tempdir().expect("temp dir");
+    let store = ArchiveStore::open(ArchiveStoreConfig {
+        database_path: temp.path().join("archive.sqlite"),
+        archive_dir: temp.path().join("archive"),
+    })
+    .expect("open archive store");
+    let backend = MemorySecretBackend::default();
+    save_login_secret(&backend);
+    store
+        .save_settings(&ArchiveStoreSettings {
+            archive_dir: store.archive_dir().to_path_buf(),
+            network_proxy: Some(DesktopNetworkProxySetting {
+                url: "http://127.0.0.1:7890".to_string(),
+                authorization: Some("Bearer saved-token".to_string()),
+            }),
+            ..ArchiveStoreSettings::default_for_archive_dir(store.archive_dir().to_path_buf())
+        })
+        .expect("save desktop settings");
+    store
+        .upsert_target_article(&target_article(
+            "fakeid-1",
+            "aid-1",
+            "First Article",
+            "https://mp.weixin.qq.com/s/first",
+        ))
+        .expect("store target article");
+    let transport = FixtureArticleHtmlDownloadTransport::default()
+        .with_html(r#"<html><body><img src="https://mmbiz.qpic.cn/mmbiz_png/a.png"></body></html>"#)
+        .with_asset("https://mmbiz.qpic.cn/mmbiz_png/a.png", b"a");
+    let client = ArticleHtmlDownloadClient::new(transport.clone(), SecretStore::new(backend));
+
+    client
+        .download_article(&store, "fakeid-1", "aid-1", None)
+        .expect("download with saved proxy setting");
+
+    let requests = transport.requests.lock().expect("read requests");
+    assert_eq!(
+        requests[0].proxy.as_ref().map(|proxy| proxy.url.as_str()),
+        Some("http://127.0.0.1:7890")
+    );
+    assert_eq!(
+        requests[1]
+            .proxy
+            .as_ref()
+            .and_then(|proxy| proxy.authorization.as_deref()),
+        Some("Bearer saved-token")
     );
 }
 

@@ -11,6 +11,7 @@ function read(relativePath: string): string {
 const manager = read('apps/desktop/src/components/TargetAccountManager.vue');
 
 for (const command of [
+  'load_desktop_settings',
   'sync_target_account_articles',
   'list_target_articles',
   'latest_article_list_sync',
@@ -20,6 +21,7 @@ for (const command of [
 
 assert.match(manager, /maxItems/);
 assert.match(manager, /pageSize/);
+assert.match(manager, /syncDownload/);
 assert.match(manager, /syncArticles/);
 assert.match(manager, /articleList/);
 assert.match(manager, /syncStatus/);

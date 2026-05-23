@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "WeChat Article Exporter",
+  "productName": "公众号文章导出工具",
   "version": "0.0.0",
   "identifier": "com.cloudy-liu.wechat-article-exporter",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "WeChat Article Exporter",
+        "title": "公众号文章导出工具",
         "width": 1180,
         "height": 760,
         "minWidth": 920,

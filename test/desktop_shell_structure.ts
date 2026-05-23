@@ -23,6 +23,10 @@ assert.equal(exists('apps/desktop/src-tauri/tauri.conf.json'), true);
 assert.equal(exists('apps/desktop/src-tauri/src/main.rs'), true);
 assert.equal(exists('apps/desktop/src-tauri/icons/icon.ico'), true);
 
+const indexHtml = read('apps/desktop/index.html');
+assert.match(indexHtml, /<html lang="zh-CN">/);
+assert.match(indexHtml, /<title>公众号文章导出工具<\/title>/);
+
 const desktopPackage = JSON.parse(read('apps/desktop/package.json'));
 assert.equal(desktopPackage.scripts.dev, 'vite --host 127.0.0.1');
 assert.equal(desktopPackage.scripts.build, 'vue-tsc --noEmit && vite build');
@@ -48,15 +52,17 @@ const app = read('apps/desktop/src/App.vue');
 assert.match(app, /RouterLink/);
 assert.match(app, /navItems/);
 assert.match(app, /桌面端核心功能/);
+assert.match(app, /公众号作者工作台/);
 for (const excluded of ['API', 'Public Proxy', 'Sponsorship', 'Developer']) {
   assert.doesNotMatch(app, new RegExp(excluded, 'i'));
 }
+assert.doesNotMatch(app, /Tauri 2/i);
 
 const tauriConfig = JSON.parse(read('apps/desktop/src-tauri/tauri.conf.json'));
-assert.equal(tauriConfig.productName, 'WeChat Article Exporter');
+assert.equal(tauriConfig.productName, '公众号文章导出工具');
 assert.equal(tauriConfig.build.devUrl, 'http://127.0.0.1:1420');
 assert.equal(tauriConfig.build.frontendDist, '../dist');
-assert.equal(tauriConfig.app.windows[0].title, 'WeChat Article Exporter');
+assert.equal(tauriConfig.app.windows[0].title, '公众号文章导出工具');
 
 const cargo = read('apps/desktop/src-tauri/Cargo.toml');
 assert.match(cargo, /tauri = \{ version = "=2\./);

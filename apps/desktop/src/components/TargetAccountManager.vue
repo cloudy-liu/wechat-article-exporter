@@ -77,6 +77,15 @@ type NetworkProxySetting = {
   authorization?: string | null;
 };
 
+type DesktopSettings = {
+  syncDownload?: {
+    historyLimit?: number;
+    pageSize?: number;
+    downloadConcurrency?: number;
+  };
+  networkProxy?: NetworkProxySetting | null;
+};
+
 type ArticleHtmlDownloadOutcome = {
   articleId: string;
   targetAccountId: string;
@@ -110,10 +119,23 @@ const proxyAuthorization = ref('');
 const exportText = ref('');
 const importText = ref('');
 
-onMounted(() => {
+onMounted(async () => {
+  await loadDesktopSettings();
   refreshAccounts();
   refreshCollectionTasks();
 });
+
+async function loadDesktopSettings() {
+  try {
+    const settings = await invoke<DesktopSettings>('load_desktop_settings');
+    maxItems.value = positiveInteger(settings.syncDownload?.historyLimit, maxItems.value);
+    pageSize.value = positiveInteger(settings.syncDownload?.pageSize, pageSize.value);
+    proxyUrl.value = settings.networkProxy?.url || '';
+    proxyAuthorization.value = settings.networkProxy?.authorization || '';
+  } catch (error) {
+    errorMessage.value = formatError(error);
+  }
+}
 
 async function searchAccounts() {
   const trimmedKeyword = keyword.value.trim();
@@ -374,6 +396,11 @@ function formatError(error: unknown): string {
   }
 
   return String(error);
+}
+
+function positiveInteger(value: unknown, fallback: number): number {
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
 }
 
 function formatUnixTime(value: number): string {

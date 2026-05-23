@@ -31,7 +31,7 @@ const navItems = computed(() => routes.filter(item => item.path !== '/' && item.
 
     <main class="workspace">
       <header class="workspace-header">
-        <p class="workspace-kicker">Tauri 2 桌面端</p>
+        <p class="workspace-kicker">公众号作者工作台</p>
         <h2>{{ String(route.name || '目标公众号') }}</h2>
       </header>
 

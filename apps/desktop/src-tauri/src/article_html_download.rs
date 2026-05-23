@@ -11,7 +11,7 @@ use url::Url;
 
 use crate::archive_store::{
     ArchiveArticle, ArchiveArticleInput, ArchiveStore, ArchiveStoreError, CollectionTaskItemInput,
-    CollectionTaskItemStatus, CollectionTaskType, TargetArticleInput,
+    CollectionTaskItemStatus, CollectionTaskType, DesktopNetworkProxySetting, TargetArticleInput,
 };
 use crate::official_account_login::OfficialAccountLoginSecret;
 use crate::secret_store::{SecretBackend, SecretSlot, SecretStore, SecretStoreError};
@@ -163,6 +163,7 @@ where
         proxy: Option<NetworkProxySetting>,
     ) -> ArticleHtmlDownloadResult<ArticleHtmlDownloadOutcome> {
         let login_secret = self.login_secret()?;
+        let proxy = resolve_download_proxy_setting(archive_store, proxy)?;
         let article = archive_store
             .list_target_articles(fakeid)?
             .into_iter()
@@ -226,6 +227,7 @@ where
         proxy: Option<NetworkProxySetting>,
     ) -> ArticleHtmlDownloadResult<ArticleHtmlDownloadOutcome> {
         let login_secret = self.login_secret()?;
+        let proxy = resolve_download_proxy_setting(archive_store, proxy)?;
         let article = archive_store.get_article(article_id)?.ok_or_else(|| {
             ArticleHtmlDownloadError::ArticleNotFound {
                 fakeid: SINGLE_ARTICLE_TARGET_ACCOUNT_ID.to_string(),
@@ -302,6 +304,32 @@ where
 
         Ok(serde_json::from_str(&login_secret)?)
     }
+}
+
+impl From<DesktopNetworkProxySetting> for NetworkProxySetting {
+    fn from(value: DesktopNetworkProxySetting) -> Self {
+        Self {
+            url: value.url,
+            authorization: value.authorization,
+        }
+    }
+}
+
+pub fn resolve_download_proxy_setting(
+    archive_store: &ArchiveStore,
+    explicit_proxy: Option<NetworkProxySetting>,
+) -> Result<Option<NetworkProxySetting>, ArchiveStoreError> {
+    if explicit_proxy
+        .as_ref()
+        .is_some_and(|proxy| !proxy.url.trim().is_empty())
+    {
+        return Ok(explicit_proxy);
+    }
+
+    Ok(archive_store
+        .load_or_create_settings()?
+        .network_proxy
+        .map(Into::into))
 }
 
 pub fn download_archived_article_with_transport<T>(

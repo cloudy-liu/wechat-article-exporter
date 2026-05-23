@@ -13,9 +13,10 @@ use crate::article_export::{
     ArticleExportError, ArticleExportFormat, ArticleExportOutcome, ArticleExportService,
 };
 use crate::article_html_download::{
-    download_archived_article_with_transport, ArticleHtmlDownloadError, ArticleHtmlDownloadOutcome,
-    ArticleHtmlDownloadResourceRequest, ArticleHtmlDownloadResourceResponse,
-    ArticleHtmlDownloadTransport, NetworkProxySetting, WeChatArticleHtmlDownloadTransport,
+    download_archived_article_with_transport, resolve_download_proxy_setting,
+    ArticleHtmlDownloadError, ArticleHtmlDownloadOutcome, ArticleHtmlDownloadResourceRequest,
+    ArticleHtmlDownloadResourceResponse, ArticleHtmlDownloadTransport, NetworkProxySetting,
+    WeChatArticleHtmlDownloadTransport,
 };
 use crate::official_account_login::OfficialAccountLoginSecret;
 use crate::secret_store::{SecretBackend, SecretSlot, SecretStore, SecretStoreError};
@@ -349,6 +350,7 @@ where
         proxy: Option<NetworkProxySetting>,
     ) -> AlbumWorkflowResult<Vec<ArticleHtmlDownloadOutcome>> {
         let login_secret = self.login_secret()?;
+        let proxy = resolve_download_proxy_setting(archive_store, proxy)?;
         let articles = archive_store.list_target_articles_by_album(fakeid, album_id)?;
         let task = archive_store.create_collection_task(
             CollectionTaskType::AlbumDownload,
