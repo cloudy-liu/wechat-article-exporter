@@ -2,6 +2,14 @@
   <img src="./assets/logo.svg" alt="Logo">
 </p>
 
+# WeChat Article Exporter
+
+The active product is the desktop app. New implementation work belongs in `apps/desktop`, the Desktop Workspace for the Tauri 2, Rust, Vite, and Vue 3 application.
+
+The existing Nuxt/Nitro implementation is now the Legacy Web App. It remains in this repository as a behavior and migration reference, not as the active product target.
+
+See `CONTEXT.md` and `docs/adr/` for the desktop migration glossary and architecture decisions.
+
 # 🚀 wechat-article-exporter fork
 
 这是 `cloudy-liu` 维护的 fork，来源仓库是

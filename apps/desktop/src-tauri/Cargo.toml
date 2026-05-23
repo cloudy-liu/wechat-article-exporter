@@ -1,0 +1,28 @@
+[package]
+name = "wechat-article-exporter-desktop"
+version = "0.0.0"
+description = "Desktop Archive App for WeChat Article Exporter"
+authors = ["cloudy-liu"]
+edition = "2021"
+
+[lib]
+name = "wechat_article_exporter_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.4.0", features = [] }
+
+[dependencies]
+base64 = "=0.22.1"
+reqwest = { version = "=0.12.28", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+tauri = { version = "=2.8.0", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "=2.5.8"
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "=3.6.3", default-features = false, features = ["windows-native"] }
+
+[dev-dependencies]
+tempfile = "=3.14.0"
