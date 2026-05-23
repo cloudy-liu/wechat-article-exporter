@@ -13,13 +13,19 @@ node_modules
 logs
 *.log
 
+# Desktop build/generated outputs
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/schemas/
+
 # Misc
 .DS_Store
 .fleet
 .idea
 debug
 design
-docs
+docs/*
+!docs/adr/
+!docs/adr/**
 research/
 samples/**/output
 
