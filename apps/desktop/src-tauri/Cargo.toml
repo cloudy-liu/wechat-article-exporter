@@ -1,7 +1,7 @@
 [package]
 name = "wechat-article-exporter-desktop"
 version = "0.0.0"
-description = "Desktop Archive App for WeChat Article Exporter"
+description = "面向公众号作者的本地桌面采集和导出工具"
 authors = ["cloudy-liu"]
 edition = "2021"
 
