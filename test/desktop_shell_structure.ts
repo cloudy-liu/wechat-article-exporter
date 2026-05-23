@@ -40,14 +40,14 @@ assert.match(main, /createApp\(App\)/);
 assert.match(main, /\.use\(router\)/);
 
 const router = read('apps/desktop/src/router.ts');
-for (const route of ['Target Accounts', 'Articles', 'Single Article', 'Albums', 'Settings']) {
+for (const route of ['目标公众号', '文章库', '单篇文章', '合集下载', '设置']) {
   assert.match(router, new RegExp(route));
 }
 
 const app = read('apps/desktop/src/App.vue');
 assert.match(app, /RouterLink/);
 assert.match(app, /navItems/);
-assert.match(app, /Desktop core feature set/);
+assert.match(app, /桌面端核心功能/);
 for (const excluded of ['API', 'Public Proxy', 'Sponsorship', 'Developer']) {
   assert.doesNotMatch(app, new RegExp(excluded, 'i'));
 }

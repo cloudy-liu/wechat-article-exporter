@@ -137,7 +137,7 @@ impl ArticleExportService {
             None,
         )?;
 
-        match self.export_article_with_task(
+        match self.export_archived_article_with_task(
             archive_store,
             &article,
             &request.formats,
@@ -164,7 +164,7 @@ impl ArticleExportService {
         }
     }
 
-    fn export_article_with_task(
+    pub fn export_archived_article_with_task(
         &self,
         archive_store: &ArchiveStore,
         article: &ArchiveArticle,

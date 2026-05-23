@@ -25,8 +25,8 @@ for (const command of [
   assert.match(loginPanel, new RegExp(command));
 }
 assert.match(loginPanel, /@tauri-apps\/api\/core/);
-assert.match(loginPanel, /Official Account platform login only/);
-assert.match(loginPanel, /Personal WeChat login is not supported/);
+assert.match(loginPanel, /仅支持公众号平台登录/);
+assert.match(loginPanel, /不支持个人微信号登录/);
 assert.match(loginPanel, /qrCodeDataUrl/);
 assert.match(loginPanel, /sessionId/);
 

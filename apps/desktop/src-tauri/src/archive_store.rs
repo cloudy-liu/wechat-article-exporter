@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 5;
 const DEFAULT_ARCHIVE_DIR_NAME: &str = "archive";
 const DEFAULT_DATABASE_FILE_NAME: &str = "archive.sqlite";
 const TARGET_ACCOUNT_EXPORT_FORMAT: &str = "wechat-article-exporter.target-accounts.v1";
@@ -27,6 +27,7 @@ pub enum ArchiveStoreError {
     InvalidCollectionTaskStatus(String),
     InvalidCollectionTaskType(String),
     UnsupportedTargetAccountExportFormat(String),
+    Json(serde_json::Error),
 }
 
 impl fmt::Display for ArchiveStoreError {
@@ -69,6 +70,7 @@ impl fmt::Display for ArchiveStoreError {
                     "unsupported target account export format: {format}"
                 )
             }
+            Self::Json(error) => write!(formatter, "archive store JSON error: {error}"),
         }
     }
 }
@@ -84,6 +86,12 @@ impl From<std::io::Error> for ArchiveStoreError {
 impl From<rusqlite::Error> for ArchiveStoreError {
     fn from(error: rusqlite::Error) -> Self {
         Self::Sqlite(error)
+    }
+}
+
+impl From<serde_json::Error> for ArchiveStoreError {
+    fn from(error: serde_json::Error) -> Self {
+        Self::Json(error)
     }
 }
 
@@ -153,6 +161,14 @@ pub struct TargetAccountExport {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct TargetArticleAlbumInfo {
+    pub album_id: i64,
+    pub id: String,
+    pub tag_source: i64,
+    pub title: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct TargetArticleInput {
     pub article_id: String,
     pub target_account_id: String,
@@ -168,6 +184,7 @@ pub struct TargetArticleInput {
     pub update_time: i64,
     pub is_deleted: bool,
     pub copyright_type: i64,
+    pub album_infos: Vec<TargetArticleAlbumInfo>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -637,6 +654,7 @@ impl ArchiveStore {
     }
 
     pub fn upsert_target_article(&self, article: &TargetArticleInput) -> ArchiveStoreResult<()> {
+        let album_infos_json = serde_json::to_string(&article.album_infos)?;
         self.connection.execute(
             r#"
             INSERT INTO target_articles (
@@ -654,9 +672,10 @@ impl ArchiveStore {
               update_time,
               is_deleted,
               copyright_type,
+              album_infos_json,
               updated_at
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, CURRENT_TIMESTAMP)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, CURRENT_TIMESTAMP)
             ON CONFLICT(target_account_id, article_id) DO UPDATE SET
               title = excluded.title,
               source_url = excluded.source_url,
@@ -670,6 +689,7 @@ impl ArchiveStore {
               update_time = excluded.update_time,
               is_deleted = excluded.is_deleted,
               copyright_type = excluded.copyright_type,
+              album_infos_json = excluded.album_infos_json,
               updated_at = excluded.updated_at
             "#,
             params![
@@ -686,7 +706,8 @@ impl ArchiveStore {
                 article.create_time,
                 article.update_time,
                 article.is_deleted,
-                article.copyright_type
+                article.copyright_type,
+                album_infos_json
             ],
         )?;
 
@@ -713,7 +734,8 @@ impl ArchiveStore {
               create_time,
               update_time,
               is_deleted,
-              copyright_type
+              copyright_type,
+              album_infos_json
             FROM target_articles
             WHERE target_account_id = ?1
             ORDER BY create_time DESC, update_time DESC, article_id
@@ -736,11 +758,51 @@ impl ArchiveStore {
                     update_time: row.get(11)?,
                     is_deleted: row.get(12)?,
                     copyright_type: row.get(13)?,
+                    album_infos: parse_target_article_album_infos(&row.get::<_, String>(14)?)
+                        .map_err(to_from_sql_conversion_failure(14))?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(articles)
+    }
+
+    pub fn list_target_account_albums(
+        &self,
+        target_account_id: &str,
+    ) -> ArchiveStoreResult<Vec<TargetArticleAlbumInfo>> {
+        let mut albums = Vec::new();
+
+        for article in self.list_target_articles(target_account_id)? {
+            for album in article.album_infos {
+                if !album.id.trim().is_empty()
+                    && !albums
+                        .iter()
+                        .any(|existing: &TargetArticleAlbumInfo| existing.id == album.id)
+                {
+                    albums.push(album);
+                }
+            }
+        }
+
+        Ok(albums)
+    }
+
+    pub fn list_target_articles_by_album(
+        &self,
+        target_account_id: &str,
+        album_id: &str,
+    ) -> ArchiveStoreResult<Vec<TargetArticleInput>> {
+        Ok(self
+            .list_target_articles(target_account_id)?
+            .into_iter()
+            .filter(|article| {
+                article.album_infos.iter().any(|album| {
+                    album.id == album_id
+                        || (album.id.is_empty() && album.album_id.to_string() == album_id)
+                })
+            })
+            .collect())
     }
 
     pub fn record_article_list_sync(
@@ -1249,6 +1311,7 @@ impl ArchiveStore {
               update_time INTEGER NOT NULL,
               is_deleted INTEGER NOT NULL,
               copyright_type INTEGER NOT NULL,
+              album_infos_json TEXT NOT NULL DEFAULT '[]',
               created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
               updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
               PRIMARY KEY (target_account_id, article_id)
@@ -1304,12 +1367,29 @@ impl ArchiveStore {
             COMMIT;
             "#,
         )?;
+        if !self.table_has_column("target_articles", "album_infos_json")? {
+            self.connection.execute(
+                "ALTER TABLE target_articles ADD COLUMN album_infos_json TEXT NOT NULL DEFAULT '[]'",
+                [],
+            )?;
+        }
         self.connection.execute(
             "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?1)",
             params![SCHEMA_VERSION],
         )?;
 
         Ok(())
+    }
+
+    fn table_has_column(&self, table_name: &str, column_name: &str) -> ArchiveStoreResult<bool> {
+        let mut statement = self
+            .connection
+            .prepare(&format!("PRAGMA table_info({table_name})"))?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(columns.iter().any(|column| column == column_name))
     }
 }
 
@@ -1327,6 +1407,12 @@ fn path_to_database_text(path: &Path) -> ArchiveStoreResult<String> {
 
 fn optional_relative_path_to_text(path: Option<&Path>) -> ArchiveStoreResult<Option<String>> {
     path.map(relative_path_to_text).transpose()
+}
+
+fn parse_target_article_album_infos(
+    raw_json: &str,
+) -> ArchiveStoreResult<Vec<TargetArticleAlbumInfo>> {
+    Ok(serde_json::from_str(raw_json)?)
 }
 
 fn collection_task_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<CollectionTask> {

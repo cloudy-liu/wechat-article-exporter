@@ -12,11 +12,11 @@ const navItems = computed(() => routes.filter(item => item.path !== '/' && item.
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
-        <p class="brand-kicker">Desktop Archive App</p>
-        <h1>WeChat Article Exporter</h1>
+        <p class="brand-kicker">本地桌面端</p>
+        <h1>公众号文章导出工具</h1>
       </div>
 
-      <nav class="navigation" aria-label="Desktop core feature set">
+      <nav class="navigation" aria-label="桌面端核心功能">
         <RouterLink
           v-for="item in navItems"
           :key="item.path"
@@ -31,8 +31,8 @@ const navItems = computed(() => routes.filter(item => item.path !== '/' && item.
 
     <main class="workspace">
       <header class="workspace-header">
-        <p class="workspace-kicker">Tauri 2 Shell</p>
-        <h2>{{ String(route.name || 'Target Accounts') }}</h2>
+        <p class="workspace-kicker">Tauri 2 桌面端</p>
+        <h2>{{ String(route.name || '目标公众号') }}</h2>
       </header>
 
       <RouterView />

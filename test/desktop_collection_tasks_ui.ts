@@ -21,8 +21,8 @@ for (const command of [
   assert.match(lib, new RegExp(command));
 }
 
-assert.match(manager, /Collection tasks/);
-assert.match(manager, /Retry failed/);
+assert.match(manager, /采集任务/);
+assert.match(manager, /重试失败项/);
 assert.match(manager, /accountArticleSync/);
 assert.match(manager, /succeeded_items/);
 assert.match(manager, /failed_items/);

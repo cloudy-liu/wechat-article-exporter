@@ -266,6 +266,7 @@ fn target_article(
         update_time: 1_700_000_020,
         is_deleted: false,
         copyright_type: 0,
+        album_infos: Vec::new(),
     }
 }
 

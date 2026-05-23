@@ -24,7 +24,7 @@ fn initializes_sqlite_schema_and_archive_directories() {
     assert!(archive_dir.join("articles").is_dir());
     assert!(archive_dir.join("assets").is_dir());
     assert!(archive_dir.join("exports").is_dir());
-    assert_eq!(store.schema_version().expect("schema version"), 4);
+    assert_eq!(store.schema_version().expect("schema version"), 5);
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn initializes_from_app_data_directory_with_default_paths() {
 
     assert_eq!(snapshot.database_path, temp.path().join("archive.sqlite"));
     assert_eq!(snapshot.archive_dir, temp.path().join("archive"));
-    assert_eq!(snapshot.schema_version, 4);
+    assert_eq!(snapshot.schema_version, 5);
     assert!(snapshot.database_path.exists());
     assert!(snapshot.archive_dir.join("articles").is_dir());
     assert!(snapshot.archive_dir.join("assets").is_dir());
