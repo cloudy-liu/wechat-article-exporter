@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-const SCHEMA_VERSION: i64 = 6;
+const SCHEMA_VERSION: i64 = 7;
 const DEFAULT_ARCHIVE_DIR_NAME: &str = "archive";
 const DEFAULT_DATABASE_FILE_NAME: &str = "archive.sqlite";
 const TARGET_ACCOUNT_EXPORT_FORMAT: &str = "wechat-article-exporter.target-accounts.v1";
@@ -198,6 +198,53 @@ pub struct ArchiveArticle {
     pub source_url: String,
     pub html_file: Option<PathBuf>,
     pub markdown_file: Option<PathBuf>,
+    pub reading_enrichment: Option<ArticleReadingEnrichment>,
+    pub reading_comments: Vec<ArticleReadingComment>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArticleReadingEnrichmentInput {
+    pub read_count: Option<u32>,
+    pub like_count: Option<u32>,
+    pub share_count: Option<u32>,
+    pub comment_count: Option<u32>,
+    pub paid_content: Option<String>,
+    pub comments: Vec<ArticleReadingCommentInput>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArticleReadingEnrichment {
+    pub read_count: Option<u32>,
+    pub like_count: Option<u32>,
+    pub share_count: Option<u32>,
+    pub comment_count: Option<u32>,
+    pub paid_content: Option<String>,
+    pub enriched_at_unix: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArticleReadingCommentInput {
+    pub comment_id: String,
+    pub author_name: String,
+    pub content: String,
+    pub like_count: u32,
+    pub created_at_unix: i64,
+    pub raw_json: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArticleReadingComment {
+    pub article_id: String,
+    pub comment_id: String,
+    pub author_name: String,
+    pub content: String,
+    pub like_count: u32,
+    pub created_at_unix: i64,
+    pub raw_json: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -642,28 +689,30 @@ impl ArchiveStore {
             .connection
             .query_row(
                 r#"
-                SELECT article_id, target_account_id, title, source_url, html_file, markdown_file
+                SELECT
+                  article_id,
+                  target_account_id,
+                  title,
+                  source_url,
+                  html_file,
+                  markdown_file,
+                  reading_read_count,
+                  reading_like_count,
+                  reading_share_count,
+                  reading_comment_count,
+                  reading_paid_content,
+                  reading_enriched_at_unix
                 FROM article_archives
                 WHERE article_id = ?1
                 "#,
                 params![article_id],
-                |row| {
-                    let html_file = row.get::<_, Option<String>>(4)?.map(PathBuf::from);
-                    let markdown_file = row.get::<_, Option<String>>(5)?.map(PathBuf::from);
-
-                    Ok(ArchiveArticle {
-                        article_id: row.get(0)?,
-                        target_account_id: row.get(1)?,
-                        title: row.get(2)?,
-                        source_url: row.get(3)?,
-                        html_file,
-                        markdown_file,
-                    })
-                },
+                archive_article_from_row,
             )
             .optional()?;
 
-        Ok(article)
+        article
+            .map(|article| self.attach_reading_comments(article))
+            .transpose()
     }
 
     pub fn list_articles_by_target_account(
@@ -672,29 +721,162 @@ impl ArchiveStore {
     ) -> ArchiveStoreResult<Vec<ArchiveArticle>> {
         let mut statement = self.connection.prepare(
             r#"
-            SELECT article_id, target_account_id, title, source_url, html_file, markdown_file
+            SELECT
+              article_id,
+              target_account_id,
+              title,
+              source_url,
+              html_file,
+              markdown_file,
+              reading_read_count,
+              reading_like_count,
+              reading_share_count,
+              reading_comment_count,
+              reading_paid_content,
+              reading_enriched_at_unix
             FROM article_archives
             WHERE target_account_id = ?1
             ORDER BY updated_at DESC, created_at DESC, article_id
             "#,
         )?;
         let articles = statement
-            .query_map(params![target_account_id], |row| {
-                let html_file = row.get::<_, Option<String>>(4)?.map(PathBuf::from);
-                let markdown_file = row.get::<_, Option<String>>(5)?.map(PathBuf::from);
+            .query_map(params![target_account_id], archive_article_from_row)?
+            .collect::<Result<Vec<_>, _>>()?;
 
-                Ok(ArchiveArticle {
+        articles
+            .into_iter()
+            .map(|article| self.attach_reading_comments(article))
+            .collect()
+    }
+
+    pub fn upsert_article_reading_enrichment(
+        &self,
+        article_id: &str,
+        enrichment: &ArticleReadingEnrichmentInput,
+        enriched_at_unix: i64,
+    ) -> ArchiveStoreResult<ArticleReadingEnrichment> {
+        let updated_rows = self.connection.execute(
+            r#"
+            UPDATE article_archives
+            SET
+              reading_read_count = ?2,
+              reading_like_count = ?3,
+              reading_share_count = ?4,
+              reading_comment_count = ?5,
+              reading_paid_content = ?6,
+              reading_enriched_at_unix = ?7,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE article_id = ?1
+            "#,
+            params![
+                article_id,
+                optional_u32_to_database_i64(enrichment.read_count),
+                optional_u32_to_database_i64(enrichment.like_count),
+                optional_u32_to_database_i64(enrichment.share_count),
+                optional_u32_to_database_i64(enrichment.comment_count),
+                enrichment.paid_content,
+                enriched_at_unix
+            ],
+        )?;
+        if updated_rows == 0 {
+            return Err(ArchiveStoreError::Sqlite(
+                rusqlite::Error::QueryReturnedNoRows,
+            ));
+        }
+
+        self.connection.execute(
+            "DELETE FROM article_reading_comments WHERE article_id = ?1",
+            params![article_id],
+        )?;
+        for comment in &enrichment.comments {
+            self.connection.execute(
+                r#"
+                INSERT INTO article_reading_comments (
+                  article_id,
+                  comment_id,
+                  author_name,
+                  content,
+                  like_count,
+                  created_at_unix,
+                  raw_json,
+                  updated_at
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, CURRENT_TIMESTAMP)
+                ON CONFLICT(article_id, comment_id) DO UPDATE SET
+                  author_name = excluded.author_name,
+                  content = excluded.content,
+                  like_count = excluded.like_count,
+                  created_at_unix = excluded.created_at_unix,
+                  raw_json = excluded.raw_json,
+                  updated_at = excluded.updated_at
+                "#,
+                params![
+                    article_id,
+                    comment.comment_id,
+                    comment.author_name,
+                    comment.content,
+                    i64::from(comment.like_count),
+                    comment.created_at_unix,
+                    comment.raw_json
+                ],
+            )?;
+        }
+
+        Ok(ArticleReadingEnrichment {
+            read_count: enrichment.read_count,
+            like_count: enrichment.like_count,
+            share_count: enrichment.share_count,
+            comment_count: enrichment.comment_count,
+            paid_content: enrichment.paid_content.clone(),
+            enriched_at_unix,
+        })
+    }
+
+    fn attach_reading_comments(
+        &self,
+        mut article: ArchiveArticle,
+    ) -> ArchiveStoreResult<ArchiveArticle> {
+        article.reading_comments = self.list_article_reading_comments(&article.article_id)?;
+
+        Ok(article)
+    }
+
+    fn list_article_reading_comments(
+        &self,
+        article_id: &str,
+    ) -> ArchiveStoreResult<Vec<ArticleReadingComment>> {
+        let mut statement = self.connection.prepare(
+            r#"
+            SELECT
+              article_id,
+              comment_id,
+              author_name,
+              content,
+              like_count,
+              created_at_unix,
+              raw_json
+            FROM article_reading_comments
+            WHERE article_id = ?1
+            ORDER BY created_at_unix DESC, comment_id
+            "#,
+        )?;
+        let comments = statement
+            .query_map(params![article_id], |row| {
+                let like_count = row.get::<_, i64>(4)?;
+
+                Ok(ArticleReadingComment {
                     article_id: row.get(0)?,
-                    target_account_id: row.get(1)?,
-                    title: row.get(2)?,
-                    source_url: row.get(3)?,
-                    html_file,
-                    markdown_file,
+                    comment_id: row.get(1)?,
+                    author_name: row.get(2)?,
+                    content: row.get(3)?,
+                    like_count: database_i64_to_u32(like_count, 0),
+                    created_at_unix: row.get(5)?,
+                    raw_json: row.get(6)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(articles)
+        Ok(comments)
     }
 
     pub fn upsert_target_account(&self, account: &TargetAccountInput) -> ArchiveStoreResult<()> {
@@ -1420,8 +1602,28 @@ impl ArchiveStore {
               source_url TEXT NOT NULL,
               html_file TEXT,
               markdown_file TEXT,
+              reading_read_count INTEGER,
+              reading_like_count INTEGER,
+              reading_share_count INTEGER,
+              reading_comment_count INTEGER,
+              reading_paid_content TEXT,
+              reading_enriched_at_unix INTEGER,
               created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
               updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS article_reading_comments (
+              article_id TEXT NOT NULL,
+              comment_id TEXT NOT NULL,
+              author_name TEXT NOT NULL,
+              content TEXT NOT NULL,
+              like_count INTEGER NOT NULL DEFAULT 0,
+              created_at_unix INTEGER NOT NULL DEFAULT 0,
+              raw_json TEXT,
+              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (article_id, comment_id),
+              FOREIGN KEY (article_id) REFERENCES article_archives(article_id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS target_accounts (
@@ -1503,6 +1705,9 @@ impl ArchiveStore {
             CREATE INDEX IF NOT EXISTS idx_collection_task_items_status
             ON collection_task_items(task_id, status);
 
+            CREATE INDEX IF NOT EXISTS idx_article_reading_comments_article
+            ON article_reading_comments(article_id, created_at_unix DESC);
+
             COMMIT;
             "#,
         )?;
@@ -1539,6 +1744,12 @@ impl ArchiveStore {
             "TEXT NOT NULL DEFAULT ''",
         )?;
         self.add_column_if_missing("app_settings", "network_proxy_authorization", "TEXT")?;
+        self.add_column_if_missing("article_archives", "reading_read_count", "INTEGER")?;
+        self.add_column_if_missing("article_archives", "reading_like_count", "INTEGER")?;
+        self.add_column_if_missing("article_archives", "reading_share_count", "INTEGER")?;
+        self.add_column_if_missing("article_archives", "reading_comment_count", "INTEGER")?;
+        self.add_column_if_missing("article_archives", "reading_paid_content", "TEXT")?;
+        self.add_column_if_missing("article_archives", "reading_enriched_at_unix", "INTEGER")?;
         self.connection.execute(
             "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?1)",
             params![SCHEMA_VERSION],
@@ -1632,6 +1843,36 @@ fn settings_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ArchiveStoreSe
     })
 }
 
+fn archive_article_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ArchiveArticle> {
+    let html_file = row.get::<_, Option<String>>(4)?.map(PathBuf::from);
+    let markdown_file = row.get::<_, Option<String>>(5)?.map(PathBuf::from);
+    let read_count = row.get::<_, Option<i64>>(6)?;
+    let like_count = row.get::<_, Option<i64>>(7)?;
+    let share_count = row.get::<_, Option<i64>>(8)?;
+    let comment_count = row.get::<_, Option<i64>>(9)?;
+    let paid_content = row.get::<_, Option<String>>(10)?;
+    let enriched_at_unix = row.get::<_, Option<i64>>(11)?;
+    let reading_enrichment = enriched_at_unix.map(|enriched_at_unix| ArticleReadingEnrichment {
+        read_count: database_i64_to_optional_u32(read_count),
+        like_count: database_i64_to_optional_u32(like_count),
+        share_count: database_i64_to_optional_u32(share_count),
+        comment_count: database_i64_to_optional_u32(comment_count),
+        paid_content,
+        enriched_at_unix,
+    });
+
+    Ok(ArchiveArticle {
+        article_id: row.get(0)?,
+        target_account_id: row.get(1)?,
+        title: row.get(2)?,
+        source_url: row.get(3)?,
+        html_file,
+        markdown_file,
+        reading_enrichment,
+        reading_comments: Vec::new(),
+    })
+}
+
 fn bool_to_database_int(value: bool) -> i64 {
     if value {
         1
@@ -1649,6 +1890,14 @@ fn database_i64_to_u32(value: i64, fallback: u32) -> u32 {
         .ok()
         .filter(|value| *value > 0)
         .unwrap_or(fallback)
+}
+
+fn database_i64_to_optional_u32(value: Option<i64>) -> Option<u32> {
+    value.and_then(|value| u32::try_from(value).ok())
+}
+
+fn optional_u32_to_database_i64(value: Option<u32>) -> Option<i64> {
+    value.map(i64::from)
 }
 
 fn collection_task_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<CollectionTask> {

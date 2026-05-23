@@ -3,6 +3,7 @@ pub mod archive_store;
 pub mod article_export;
 pub mod article_html_download;
 pub mod article_list_sync;
+pub mod article_reading_enrichment;
 pub mod official_account_login;
 pub mod secret_store;
 pub mod single_article_workflow;
@@ -26,6 +27,11 @@ use article_html_download::{
     SingleArticleHtmlDownloadRequest,
 };
 use article_list_sync::ArticleListSyncState;
+use article_reading_enrichment::{
+    ArticleReadingCredential, ArticleReadingCredentialService, ArticleReadingCredentialStatus,
+    ArticleReadingEnrichmentClient, ArticleReadingEnrichmentOutcome,
+    ArticleReadingEnrichmentRequest, ArticleReadingEnrichmentState,
+};
 use official_account_login::{
     LoginScanStatus, OfficialAccountLoginAccount, OfficialAccountLoginSession,
     OfficialAccountLoginState,
@@ -325,6 +331,66 @@ fn preview_article_archive(
 }
 
 #[tauri::command]
+fn load_article_reading_credential_status() -> Result<ArticleReadingCredentialStatus, String> {
+    ArticleReadingCredentialService::new(
+        secret_store::production_secret_store(),
+        article_reading_enrichment::current_unix_seconds(),
+    )
+    .status()
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn save_article_reading_credential(
+    credential: ArticleReadingCredential,
+) -> Result<ArticleReadingCredentialStatus, String> {
+    ArticleReadingCredentialService::new(
+        secret_store::production_secret_store(),
+        article_reading_enrichment::current_unix_seconds(),
+    )
+    .save(credential)
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn mark_article_reading_credential_expired() -> Result<ArticleReadingCredentialStatus, String> {
+    ArticleReadingCredentialService::new(
+        secret_store::production_secret_store(),
+        article_reading_enrichment::current_unix_seconds(),
+    )
+    .mark_expired()
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn delete_article_reading_credential() -> Result<ArticleReadingCredentialStatus, String> {
+    ArticleReadingCredentialService::new(
+        secret_store::production_secret_store(),
+        article_reading_enrichment::current_unix_seconds(),
+    )
+    .delete()
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn enrich_selected_articles_with_reading_credential(
+    app: tauri::AppHandle,
+    state: tauri::State<ArticleReadingEnrichmentState>,
+    request: ArticleReadingEnrichmentRequest,
+) -> Result<ArticleReadingEnrichmentOutcome, String> {
+    let archive_store = open_archive_store(&app)?;
+    let client = ArticleReadingEnrichmentClient::new(
+        state.transport.clone(),
+        secret_store::production_secret_store(),
+        article_reading_enrichment::current_unix_seconds(),
+    );
+
+    client
+        .enrich_selected_articles(&archive_store, request)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn list_collection_tasks(app: tauri::AppHandle) -> Result<Vec<CollectionTask>, String> {
     open_archive_store(&app)?
         .list_collection_tasks()
@@ -472,6 +538,7 @@ pub fn run() {
         .manage(AlbumWorkflowState::default())
         .manage(ArticleHtmlDownloadState::default())
         .manage(ArticleListSyncState::default())
+        .manage(ArticleReadingEnrichmentState::default())
         .manage(OfficialAccountLoginState::default())
         .manage(TargetAccountSearchState::default())
         .invoke_handler(tauri::generate_handler![
@@ -498,6 +565,11 @@ pub fn run() {
             download_single_article_html,
             preview_article_archive,
             export_article_archive,
+            load_article_reading_credential_status,
+            save_article_reading_credential,
+            mark_article_reading_credential_expired,
+            delete_article_reading_credential,
+            enrich_selected_articles_with_reading_credential,
             list_collection_tasks,
             retry_failed_collection_task_items,
             pause_collection_task,

@@ -297,6 +297,42 @@ fn missing_official_account_login_blocks_download_before_network() {
     assert!(transport.requests.lock().expect("read requests").is_empty());
 }
 
+#[test]
+fn expired_article_reading_credentials_do_not_block_html_download() {
+    let temp = tempdir().expect("temp dir");
+    let store = ArchiveStore::open(ArchiveStoreConfig {
+        database_path: temp.path().join("archive.sqlite"),
+        archive_dir: temp.path().join("archive"),
+    })
+    .expect("open archive store");
+    let backend = MemorySecretBackend::default();
+    save_login_secret(&backend);
+    SecretStore::new(backend.clone())
+        .save(
+            SecretSlot::ArticleReadingCredential,
+            r#"{"biz":"fakeid-1","uin":"12345","key":"stale-key","passTicket":"pass-ticket","appmsgToken":"appmsg-token","cookie":null,"expiresAtUnix":1}"#,
+        )
+        .expect("save expired reading credential");
+    store
+        .upsert_target_article(&target_article(
+            "fakeid-1",
+            "aid-1",
+            "First Article",
+            "https://mp.weixin.qq.com/s/first",
+        ))
+        .expect("store target article");
+    let transport = FixtureArticleHtmlDownloadTransport::default()
+        .with_html("<html><body>Core HTML</body></html>");
+    let client = ArticleHtmlDownloadClient::new(transport.clone(), SecretStore::new(backend));
+
+    let outcome = client
+        .download_article(&store, "fakeid-1", "aid-1", None)
+        .expect("download should ignore expired reading credential");
+
+    assert!(store.archive_dir().join(outcome.html_file).is_file());
+    assert_eq!(transport.requests.lock().expect("read requests").len(), 1);
+}
+
 fn target_article(
     target_account_id: &str,
     article_id: &str,

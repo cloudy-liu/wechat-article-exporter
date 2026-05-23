@@ -21,6 +21,23 @@ type DesktopSettings = {
   networkProxy?: DesktopNetworkProxySetting | null;
 };
 
+type ArticleReadingCredentialStatus = {
+  configured: boolean;
+  valid: boolean;
+  expired: boolean;
+  expiresAtUnix?: number | null;
+};
+
+type ArticleReadingCredentialInput = {
+  biz: string;
+  uin: string;
+  key: string;
+  passTicket: string;
+  appmsgToken: string;
+  cookie?: string | null;
+  expiresAtUnix: number;
+};
+
 const defaultSettings: DesktopSettings = {
   archiveDir: '',
   export: {
@@ -38,6 +55,16 @@ const defaultSettings: DesktopSettings = {
 const settings = ref<DesktopSettings>({ ...defaultSettings, export: { ...defaultSettings.export }, syncDownload: { ...defaultSettings.syncDownload } });
 const proxyUrl = ref('');
 const proxyAuthorization = ref('');
+const readingCredentialStatus = ref<ArticleReadingCredentialStatus | null>(null);
+const readingCredential = ref<ArticleReadingCredentialInput>({
+  biz: '',
+  uin: '',
+  key: '',
+  passTicket: '',
+  appmsgToken: '',
+  cookie: '',
+  expiresAtUnix: defaultReadingCredentialExpiry(),
+});
 const message = ref('');
 const errorMessage = ref('');
 const isBusy = ref(false);
@@ -48,8 +75,23 @@ const archiveDirectoryHint = computed(() =>
     : '首次启动后会自动使用应用数据目录下的 archive 文件夹',
 );
 
+const readingCredentialLabel = computed(() => {
+  if (!readingCredentialStatus.value?.configured) {
+    return '未配置';
+  }
+  if (readingCredentialStatus.value.valid) {
+    return '可用';
+  }
+  if (readingCredentialStatus.value.expired) {
+    return '已过期';
+  }
+
+  return '不可用';
+});
+
 onMounted(() => {
   loadSettings();
+  loadReadingCredentialStatus();
 });
 
 async function loadSettings() {
@@ -111,6 +153,58 @@ async function logoutOfficialAccount() {
   }
 }
 
+async function loadReadingCredentialStatus() {
+  try {
+    readingCredentialStatus.value = await invoke<ArticleReadingCredentialStatus>('load_article_reading_credential_status');
+  } catch (error) {
+    errorMessage.value = formatError(error);
+  }
+}
+
+async function saveReadingCredential() {
+  isBusy.value = true;
+  errorMessage.value = '';
+
+  try {
+    readingCredentialStatus.value = await invoke<ArticleReadingCredentialStatus>('save_article_reading_credential', {
+      credential: buildReadingCredentialPayload(),
+    });
+    message.value = '阅读凭证已保存';
+  } catch (error) {
+    errorMessage.value = formatError(error);
+  } finally {
+    isBusy.value = false;
+  }
+}
+
+async function markReadingCredentialExpired() {
+  isBusy.value = true;
+  errorMessage.value = '';
+
+  try {
+    readingCredentialStatus.value = await invoke<ArticleReadingCredentialStatus>('mark_article_reading_credential_expired');
+    message.value = '阅读凭证已标记过期';
+  } catch (error) {
+    errorMessage.value = formatError(error);
+  } finally {
+    isBusy.value = false;
+  }
+}
+
+async function deleteReadingCredential() {
+  isBusy.value = true;
+  errorMessage.value = '';
+
+  try {
+    readingCredentialStatus.value = await invoke<ArticleReadingCredentialStatus>('delete_article_reading_credential');
+    message.value = '阅读凭证已删除';
+  } catch (error) {
+    errorMessage.value = formatError(error);
+  } finally {
+    isBusy.value = false;
+  }
+}
+
 function buildSettingsPayload(): DesktopSettings {
   const proxy = proxyUrl.value.trim()
     ? {
@@ -134,6 +228,18 @@ function buildSettingsPayload(): DesktopSettings {
       ),
     },
     networkProxy: proxy,
+  };
+}
+
+function buildReadingCredentialPayload(): ArticleReadingCredentialInput {
+  return {
+    biz: readingCredential.value.biz.trim(),
+    uin: readingCredential.value.uin.trim(),
+    key: readingCredential.value.key.trim(),
+    passTicket: readingCredential.value.passTicket.trim(),
+    appmsgToken: readingCredential.value.appmsgToken.trim(),
+    cookie: readingCredential.value.cookie?.trim() || null,
+    expiresAtUnix: positiveInteger(readingCredential.value.expiresAtUnix, defaultReadingCredentialExpiry()),
   };
 }
 
@@ -161,6 +267,10 @@ function applySettings(nextSettings: DesktopSettings) {
 function positiveInteger(value: unknown, fallback: number): number {
   const number = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
+}
+
+function defaultReadingCredentialExpiry(): number {
+  return Math.floor(Date.now() / 1000) + 24 * 60 * 60;
 }
 
 function formatError(error: unknown): string {
@@ -252,10 +362,68 @@ function formatError(error: unknown): string {
         </label>
       </section>
 
+      <section class="settings-panel settings-panel--reading" aria-label="阅读凭证">
+        <div>
+          <p class="section-label">阅读凭证 · 高级可选</p>
+          <h4>阅读数和留言富集</h4>
+        </div>
+        <p class="settings-hint">
+          阅读凭证不是公众号平台登录，只用于阅读数、点赞、分享、留言等高级富集。没有阅读凭证也可以下载 HTML 和导出 Markdown/HTML。
+        </p>
+        <div class="reading-credential-status">
+          <span>当前状态</span>
+          <strong>{{ readingCredentialLabel }}</strong>
+        </div>
+        <div class="settings-number-grid">
+          <label>
+            <span>__biz</span>
+            <input v-model="readingCredential.biz" type="text" autocomplete="off" />
+          </label>
+          <label>
+            <span>uin</span>
+            <input v-model="readingCredential.uin" type="text" autocomplete="off" />
+          </label>
+          <label>
+            <span>过期时间戳</span>
+            <input v-model.number="readingCredential.expiresAtUnix" type="number" min="1" />
+          </label>
+        </div>
+        <label>
+          <span>key</span>
+          <input v-model="readingCredential.key" type="password" autocomplete="off" />
+        </label>
+        <label>
+          <span>pass_ticket</span>
+          <input v-model="readingCredential.passTicket" type="password" autocomplete="off" />
+        </label>
+        <label>
+          <span>appmsg_token</span>
+          <input v-model="readingCredential.appmsgToken" type="password" autocomplete="off" />
+        </label>
+        <label>
+          <span>cookie</span>
+          <input v-model="readingCredential.cookie" type="password" autocomplete="off" />
+        </label>
+        <div class="settings-danger-actions">
+          <button type="button" class="primary-button" :disabled="isBusy" @click="saveReadingCredential">
+            保存阅读凭证
+          </button>
+          <button type="button" class="secondary-button" :disabled="isBusy" @click="markReadingCredentialExpired">
+            标记过期
+          </button>
+          <button type="button" class="secondary-button" :disabled="isBusy" @click="deleteReadingCredential">
+            删除阅读凭证
+          </button>
+          <button type="button" class="secondary-button" :disabled="isBusy" @click="loadReadingCredentialStatus">
+            刷新状态
+          </button>
+        </div>
+      </section>
+
       <section class="settings-panel settings-panel--danger" aria-label="清理凭证">
         <div>
           <p class="section-label">清理凭证</p>
-          <h4>本地登录状态</h4>
+          <h4>公众号平台登录状态</h4>
         </div>
         <div class="settings-danger-actions">
           <button type="button" class="secondary-button" :disabled="isBusy" @click="logoutOfficialAccount">

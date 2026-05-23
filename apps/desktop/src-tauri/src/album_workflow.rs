@@ -759,6 +759,8 @@ fn archive_article_from_target_article(article: TargetArticleInput) -> ArchiveAr
         source_url: article.source_url,
         html_file: None,
         markdown_file: None,
+        reading_enrichment: None,
+        reading_comments: Vec::new(),
     }
 }
 
