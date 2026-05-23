@@ -10,7 +10,9 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "check:workspace": "node scripts/verify-desktop-blockers.mjs"
+    "build:windows-mvp": "tauri build --no-bundle",
+    "check:workspace": "node scripts/verify-desktop-blockers.mjs",
+    "verify:windows-mvp": "node scripts/verify-windows-mvp-artifact.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.8.0",
