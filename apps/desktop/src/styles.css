@@ -638,10 +638,16 @@ a {
   object-fit: cover;
 }
 
-.article-row div {
+.article-row > div:not(.article-row__actions) {
   display: grid;
   gap: 4px;
   min-width: 0;
+}
+
+.article-row__actions {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr);
+  gap: 8px;
 }
 
 .article-row strong,

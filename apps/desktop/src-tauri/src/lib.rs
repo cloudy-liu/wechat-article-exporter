@@ -1,4 +1,5 @@
 pub mod archive_store;
+pub mod article_export;
 pub mod article_html_download;
 pub mod article_list_sync;
 pub mod official_account_login;
@@ -9,6 +10,7 @@ use archive_store::{
     ArchiveStore, ArchiveStoreConfig, ArchiveStoreSnapshot, ArticleListSyncRecord, CollectionTask,
     CollectionTaskStatus, TargetAccountExport, TargetAccountInput, TargetArticleInput,
 };
+use article_export::{ArticleExportOutcome, ArticleExportRequest, ArticleExportService};
 use article_html_download::{
     ArticleHtmlDownloadOutcome, ArticleHtmlDownloadRequest, ArticleHtmlDownloadState,
 };
@@ -145,6 +147,16 @@ fn download_article_html(
             &request.article_id,
             request.proxy,
         )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn export_article_archive(
+    app: tauri::AppHandle,
+    request: ArticleExportRequest,
+) -> Result<ArticleExportOutcome, String> {
+    ArticleExportService::new()
+        .export_article(&open_archive_store(&app)?, request)
         .map_err(|error| error.to_string())
 }
 
@@ -291,6 +303,7 @@ pub fn run() {
             list_target_articles,
             latest_article_list_sync,
             download_article_html,
+            export_article_archive,
             list_collection_tasks,
             retry_failed_collection_task_items,
             pause_collection_task,
