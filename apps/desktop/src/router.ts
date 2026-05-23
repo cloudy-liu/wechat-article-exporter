@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router';
 import ArticlesView from './views/ArticlesView.vue';
 import PlaceholderView from './views/PlaceholderView.vue';
+import SingleArticleView from './views/SingleArticleView.vue';
 import TargetAccountsView from './views/TargetAccountsView.vue';
 
 export const routes: RouteRecordRaw[] = [
@@ -29,7 +30,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/single-article',
     name: 'Single Article',
-    component: PlaceholderView,
+    component: SingleArticleView,
     meta: {
       title: 'Single Article',
       summary: 'Paste a WeChat article URL, collect it locally, and export it without adding the full account first.',

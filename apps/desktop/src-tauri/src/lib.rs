@@ -4,6 +4,7 @@ pub mod article_html_download;
 pub mod article_list_sync;
 pub mod official_account_login;
 pub mod secret_store;
+pub mod single_article_workflow;
 pub mod target_accounts;
 
 use archive_store::{
@@ -16,6 +17,7 @@ use article_export::{
 };
 use article_html_download::{
     ArticleHtmlDownloadOutcome, ArticleHtmlDownloadRequest, ArticleHtmlDownloadState,
+    SingleArticleHtmlDownloadRequest,
 };
 use article_list_sync::ArticleListSyncState;
 use official_account_login::{
@@ -23,6 +25,9 @@ use official_account_login::{
     OfficialAccountLoginState,
 };
 use secret_store::SecretSlot;
+use single_article_workflow::{
+    SingleArticleArchive, SingleArticleSaveRequest, SingleArticleWorkflowService,
+};
 use target_accounts::{TargetAccountSearchResponse, TargetAccountSearchState};
 use tauri::Manager;
 
@@ -150,6 +155,40 @@ fn download_article_html(
             &request.article_id,
             request.proxy,
         )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn save_single_article(
+    app: tauri::AppHandle,
+    request: SingleArticleSaveRequest,
+) -> Result<SingleArticleArchive, String> {
+    SingleArticleWorkflowService::new()
+        .save_article(&open_archive_store(&app)?, request)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn list_single_articles(app: tauri::AppHandle) -> Result<Vec<SingleArticleArchive>, String> {
+    SingleArticleWorkflowService::new()
+        .list_articles(&open_archive_store(&app)?)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn download_single_article_html(
+    app: tauri::AppHandle,
+    state: tauri::State<ArticleHtmlDownloadState>,
+    request: SingleArticleHtmlDownloadRequest,
+) -> Result<ArticleHtmlDownloadOutcome, String> {
+    let archive_store = open_archive_store(&app)?;
+    let client = article_html_download::ArticleHtmlDownloadClient::new(
+        state.transport.clone(),
+        secret_store::production_secret_store(),
+    );
+
+    client
+        .download_single_article(&archive_store, &request.article_id, request.proxy)
         .map_err(|error| error.to_string())
 }
 
@@ -316,6 +355,9 @@ pub fn run() {
             list_target_articles,
             latest_article_list_sync,
             download_article_html,
+            save_single_article,
+            list_single_articles,
+            download_single_article_html,
             preview_article_archive,
             export_article_archive,
             list_collection_tasks,

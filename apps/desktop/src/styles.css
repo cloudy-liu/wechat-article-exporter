@@ -927,3 +927,128 @@ a {
   border-radius: 8px;
   background: #ffffff;
 }
+
+.single-article-workbench {
+  display: grid;
+  gap: 18px;
+  padding: 36px;
+}
+
+.single-article-form {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(180px, 280px) auto;
+  gap: 12px;
+  align-items: end;
+  border: 1px solid #d8d1c4;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fffaf0;
+}
+
+.single-article-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.single-article-form span {
+  color: #566156;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.single-article-form input {
+  min-height: 38px;
+  border: 1px solid #b9ad9a;
+  border-radius: 7px;
+  padding: 0 12px;
+  background: #fbf7ee;
+  color: #18201b;
+  font: inherit;
+  font-size: 14px;
+}
+
+.single-article-form input[aria-invalid='true'] {
+  border-color: #9c2f28;
+}
+
+.single-article-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 1px solid #d8d1c4;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbf7ee;
+}
+
+.single-article-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.95fr) minmax(0, 1.05fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.single-article-layout > section {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid #d8d1c4;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fbf7ee;
+}
+
+.single-article-list {
+  display: grid;
+  gap: 10px;
+}
+
+.single-article-row {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #ded5c8;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fffaf0;
+}
+
+.single-article-row.active {
+  border-color: #718962;
+  background: #edf4e8;
+}
+
+.single-article-row > button {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.single-article-row > button:disabled {
+  cursor: not-allowed;
+}
+
+.single-article-row strong,
+.single-article-row span,
+.single-article-row small {
+  overflow-wrap: anywhere;
+}
+
+.single-article-row strong {
+  color: #18201b;
+  font-size: 14px;
+}
+
+.single-article-row span,
+.single-article-row small {
+  color: #5e685f;
+  font-size: 12px;
+  line-height: 1.45;
+}
