@@ -517,6 +517,37 @@ impl ArchiveStore {
         Ok(article)
     }
 
+    pub fn list_articles_by_target_account(
+        &self,
+        target_account_id: &str,
+    ) -> ArchiveStoreResult<Vec<ArchiveArticle>> {
+        let mut statement = self.connection.prepare(
+            r#"
+            SELECT article_id, target_account_id, title, source_url, html_file, markdown_file
+            FROM article_archives
+            WHERE target_account_id = ?1
+            ORDER BY updated_at DESC, created_at DESC, article_id
+            "#,
+        )?;
+        let articles = statement
+            .query_map(params![target_account_id], |row| {
+                let html_file = row.get::<_, Option<String>>(4)?.map(PathBuf::from);
+                let markdown_file = row.get::<_, Option<String>>(5)?.map(PathBuf::from);
+
+                Ok(ArchiveArticle {
+                    article_id: row.get(0)?,
+                    target_account_id: row.get(1)?,
+                    title: row.get(2)?,
+                    source_url: row.get(3)?,
+                    html_file,
+                    markdown_file,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(articles)
+    }
+
     pub fn upsert_target_account(&self, account: &TargetAccountInput) -> ArchiveStoreResult<()> {
         self.connection.execute(
             r#"

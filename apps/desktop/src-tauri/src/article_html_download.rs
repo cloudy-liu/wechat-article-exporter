@@ -10,11 +10,12 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::archive_store::{
-    ArchiveArticleInput, ArchiveStore, ArchiveStoreError, CollectionTaskItemInput,
+    ArchiveArticle, ArchiveArticleInput, ArchiveStore, ArchiveStoreError, CollectionTaskItemInput,
     CollectionTaskItemStatus, CollectionTaskType, TargetArticleInput,
 };
 use crate::official_account_login::OfficialAccountLoginSecret;
 use crate::secret_store::{SecretBackend, SecretSlot, SecretStore, SecretStoreError};
+use crate::single_article_workflow::SINGLE_ARTICLE_TARGET_ACCOUNT_ID;
 
 const MP_REFERER: &str = "https://mp.weixin.qq.com/";
 const MP_USER_AGENT: &str =
@@ -97,6 +98,13 @@ pub struct ArticleHtmlDownloadRequest {
     pub proxy: Option<NetworkProxySetting>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SingleArticleHtmlDownloadRequest {
+    pub article_id: String,
+    pub proxy: Option<NetworkProxySetting>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArticleHtmlDownloadResourceRequest {
     pub url: String,
@@ -163,6 +171,7 @@ where
                 fakeid: fakeid.to_string(),
                 article_id: article_id.to_string(),
             })?;
+        let article = archive_article_from_target_article(article);
         let task = archive_store.create_collection_task(
             CollectionTaskType::ArticleHtmlDownload,
             Some(fakeid),
@@ -210,10 +219,69 @@ where
         }
     }
 
+    pub fn download_single_article(
+        &self,
+        archive_store: &ArchiveStore,
+        article_id: &str,
+        proxy: Option<NetworkProxySetting>,
+    ) -> ArticleHtmlDownloadResult<ArticleHtmlDownloadOutcome> {
+        let login_secret = self.login_secret()?;
+        let article = archive_store.get_article(article_id)?.ok_or_else(|| {
+            ArticleHtmlDownloadError::ArticleNotFound {
+                fakeid: SINGLE_ARTICLE_TARGET_ACCOUNT_ID.to_string(),
+                article_id: article_id.to_string(),
+            }
+        })?;
+        let task = archive_store.create_collection_task(
+            CollectionTaskType::ArticleHtmlDownload,
+            Some(SINGLE_ARTICLE_TARGET_ACCOUNT_ID),
+            vec![CollectionTaskItemInput {
+                item_id: article.article_id.clone(),
+                item_type: "single-article-html".to_string(),
+                payload_json: serde_json::to_string(&SingleArticleHtmlDownloadRequest {
+                    article_id: article.article_id.clone(),
+                    proxy: proxy.clone(),
+                })?,
+            }],
+        )?;
+        archive_store.update_collection_task_item_status(
+            &task.task_id,
+            &article.article_id,
+            CollectionTaskItemStatus::Running,
+            None,
+        )?;
+
+        match self.download_article_with_task(
+            archive_store,
+            &article,
+            &login_secret.cookie_header,
+            proxy,
+        ) {
+            Ok(outcome) => {
+                archive_store.update_collection_task_item_status(
+                    &task.task_id,
+                    &article.article_id,
+                    CollectionTaskItemStatus::Succeeded,
+                    None,
+                )?;
+                Ok(outcome)
+            }
+            Err(error) => {
+                archive_store.update_collection_task_item_status(
+                    &task.task_id,
+                    &article.article_id,
+                    CollectionTaskItemStatus::Failed,
+                    Some(error.to_string()),
+                )?;
+                Err(error)
+            }
+        }
+    }
+
     fn download_article_with_task(
         &self,
         archive_store: &ArchiveStore,
-        article: &TargetArticleInput,
+        article: &ArchiveArticle,
         cookie_header: &str,
         proxy: Option<NetworkProxySetting>,
     ) -> ArticleHtmlDownloadResult<ArticleHtmlDownloadOutcome> {
@@ -264,7 +332,7 @@ where
             title: article.title.clone(),
             source_url: article.source_url.clone(),
             html_file: Some(html_file.clone()),
-            markdown_file: None,
+            markdown_file: article.markdown_file.clone(),
         })?;
 
         Ok(ArticleHtmlDownloadOutcome {
@@ -301,6 +369,17 @@ where
             .ok_or(ArticleHtmlDownloadError::MissingOfficialAccountLogin)?;
 
         Ok(serde_json::from_str(&login_secret)?)
+    }
+}
+
+fn archive_article_from_target_article(article: TargetArticleInput) -> ArchiveArticle {
+    ArchiveArticle {
+        article_id: article.article_id,
+        target_account_id: article.target_account_id,
+        title: article.title,
+        source_url: article.source_url,
+        html_file: None,
+        markdown_file: None,
     }
 }
 
