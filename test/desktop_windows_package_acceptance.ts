@@ -1,0 +1,71 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = process.cwd();
+
+function read(relativePath: string): string {
+  return fs.readFileSync(path.join(root, relativePath), 'utf8');
+}
+
+function exists(relativePath: string): boolean {
+  return fs.existsSync(path.join(root, relativePath));
+}
+
+assert.equal(
+  exists('apps/desktop/scripts/verify-windows-mvp-artifact.mjs'),
+  true,
+  'desktop workspace must include a Windows MVP artifact verifier',
+);
+assert.equal(
+  exists('apps/desktop/WINDOWS_MVP_ACCEPTANCE.md'),
+  true,
+  'desktop workspace must document Windows MVP acceptance',
+);
+
+const desktopPackage = JSON.parse(read('apps/desktop/package.json'));
+assert.equal(
+  desktopPackage.scripts['build:windows-mvp'],
+  'tauri build --no-bundle',
+);
+assert.equal(
+  desktopPackage.scripts['verify:windows-mvp'],
+  'node scripts/verify-windows-mvp-artifact.mjs',
+);
+
+const verifier = read('apps/desktop/scripts/verify-windows-mvp-artifact.mjs');
+for (const marker of [
+  'src-tauri/target/release',
+  '--launch-smoke',
+  '--require-installer',
+  '.exe',
+  'optional installable Windows bundle artifact',
+  'win32',
+  'x64',
+]) {
+  assert.match(verifier, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+}
+
+const acceptance = read('apps/desktop/WINDOWS_MVP_ACCEPTANCE.md');
+for (const marker of [
+  'Windows x64 desktop artifact',
+  'runnable Windows artifact',
+  'tauri build --no-bundle',
+  'packaged app launches on Windows',
+  'Official Account Login',
+  'Target Official Account search',
+  'article list synchronization',
+  'article HTML download',
+  'Markdown export',
+  'HTML export',
+  'Restart behavior',
+  'local archive data',
+  'task visibility',
+  'Logout',
+  'credential clearing',
+  'Known first-release limitations',
+  'installer bundle is optional',
+  'final local acceptance by the project owner',
+]) {
+  assert.match(acceptance, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+}
