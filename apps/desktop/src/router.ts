@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router';
+import ArticlesView from './views/ArticlesView.vue';
 import PlaceholderView from './views/PlaceholderView.vue';
 import TargetAccountsView from './views/TargetAccountsView.vue';
 
@@ -19,7 +20,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/articles',
     name: 'Articles',
-    component: PlaceholderView,
+    component: ArticlesView,
     meta: {
       title: 'Articles',
       summary: 'Browse synchronized article lists, download content, preview archives, and export Markdown or HTML.',
