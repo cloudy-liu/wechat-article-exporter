@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-const SCHEMA_VERSION: i64 = 5;
+const SCHEMA_VERSION: i64 = 6;
 const DEFAULT_ARCHIVE_DIR_NAME: &str = "archive";
 const DEFAULT_DATABASE_FILE_NAME: &str = "archive.sqlite";
 const TARGET_ACCOUNT_EXPORT_FORMAT: &str = "wechat-article-exporter.target-accounts.v1";
@@ -112,9 +112,65 @@ impl ArchiveStoreConfig {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopExportSettings {
+    pub markdown: bool,
+    pub html: bool,
+}
+
+impl Default for DesktopExportSettings {
+    fn default() -> Self {
+        Self {
+            markdown: true,
+            html: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopSyncDownloadSettings {
+    pub history_limit: u32,
+    pub page_size: u32,
+    pub download_concurrency: u32,
+}
+
+impl Default for DesktopSyncDownloadSettings {
+    fn default() -> Self {
+        Self {
+            history_limit: 20,
+            page_size: 5,
+            download_concurrency: 2,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopNetworkProxySetting {
+    pub url: String,
+    pub authorization: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ArchiveStoreSettings {
     pub archive_dir: PathBuf,
+    pub export: DesktopExportSettings,
+    pub sync_download: DesktopSyncDownloadSettings,
+    pub network_proxy: Option<DesktopNetworkProxySetting>,
+}
+
+impl ArchiveStoreSettings {
+    pub fn default_for_archive_dir(archive_dir: PathBuf) -> Self {
+        Self {
+            archive_dir,
+            export: DesktopExportSettings::default(),
+            sync_download: DesktopSyncDownloadSettings::default(),
+            network_proxy: None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -438,34 +494,110 @@ impl ArchiveStore {
     }
 
     pub fn save_settings(&self, settings: &ArchiveStoreSettings) -> ArchiveStoreResult<()> {
+        let archive_dir = if settings.archive_dir.as_os_str().is_empty() {
+            self.archive_dir.clone()
+        } else {
+            settings.archive_dir.clone()
+        };
+
+        fs::create_dir_all(&archive_dir)?;
+        fs::create_dir_all(archive_dir.join("articles"))?;
+        fs::create_dir_all(archive_dir.join("assets"))?;
+        fs::create_dir_all(archive_dir.join("exports"))?;
+
+        let proxy_url = settings
+            .network_proxy
+            .as_ref()
+            .map(|proxy| proxy.url.trim())
+            .filter(|url| !url.is_empty())
+            .unwrap_or_default()
+            .to_string();
+        let proxy_authorization = settings
+            .network_proxy
+            .as_ref()
+            .and_then(|proxy| proxy.authorization.as_deref())
+            .map(str::trim)
+            .filter(|authorization| !authorization.is_empty())
+            .map(ToOwned::to_owned);
+
         self.connection.execute(
             r#"
-            INSERT INTO app_settings (id, archive_dir, updated_at)
-            VALUES (1, ?1, CURRENT_TIMESTAMP)
+            INSERT INTO app_settings (
+              id,
+              archive_dir,
+              export_markdown,
+              export_html,
+              sync_history_limit,
+              sync_page_size,
+              download_concurrency,
+              network_proxy_url,
+              network_proxy_authorization,
+              updated_at
+            )
+            VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, CURRENT_TIMESTAMP)
             ON CONFLICT(id) DO UPDATE SET
               archive_dir = excluded.archive_dir,
+              export_markdown = excluded.export_markdown,
+              export_html = excluded.export_html,
+              sync_history_limit = excluded.sync_history_limit,
+              sync_page_size = excluded.sync_page_size,
+              download_concurrency = excluded.download_concurrency,
+              network_proxy_url = excluded.network_proxy_url,
+              network_proxy_authorization = excluded.network_proxy_authorization,
               updated_at = excluded.updated_at
             "#,
-            params![path_to_database_text(&settings.archive_dir)?],
+            params![
+                path_to_database_text(&archive_dir)?,
+                bool_to_database_int(settings.export.markdown),
+                bool_to_database_int(settings.export.html),
+                i64::from(settings.sync_download.history_limit.max(1)),
+                i64::from(settings.sync_download.page_size.max(1)),
+                i64::from(settings.sync_download.download_concurrency.max(1)),
+                proxy_url,
+                proxy_authorization,
+            ],
         )?;
 
         Ok(())
     }
 
     pub fn load_settings(&self) -> ArchiveStoreResult<ArchiveStoreSettings> {
-        let archive_dir = self
+        let settings = self
             .connection
             .query_row(
-                "SELECT archive_dir FROM app_settings WHERE id = 1",
+                r#"
+                SELECT
+                  archive_dir,
+                  export_markdown,
+                  export_html,
+                  sync_history_limit,
+                  sync_page_size,
+                  download_concurrency,
+                  network_proxy_url,
+                  network_proxy_authorization
+                FROM app_settings
+                WHERE id = 1
+                "#,
                 [],
-                |row| row.get::<_, String>(0),
+                settings_from_row,
             )
             .optional()?
             .ok_or(ArchiveStoreError::MissingSettings)?;
 
-        Ok(ArchiveStoreSettings {
-            archive_dir: PathBuf::from(archive_dir),
-        })
+        Ok(settings)
+    }
+
+    pub fn load_or_create_settings(&self) -> ArchiveStoreResult<ArchiveStoreSettings> {
+        match self.load_settings() {
+            Ok(settings) => Ok(settings),
+            Err(ArchiveStoreError::MissingSettings) => {
+                let settings =
+                    ArchiveStoreSettings::default_for_archive_dir(self.archive_dir.clone());
+                self.save_settings(&settings)?;
+                Ok(settings)
+            }
+            Err(error) => Err(error),
+        }
     }
 
     pub fn upsert_article(&self, article: &ArchiveArticleInput) -> ArchiveStoreResult<()> {
@@ -1271,6 +1403,13 @@ impl ArchiveStore {
             CREATE TABLE IF NOT EXISTS app_settings (
               id INTEGER PRIMARY KEY CHECK (id = 1),
               archive_dir TEXT NOT NULL,
+              export_markdown INTEGER NOT NULL DEFAULT 1,
+              export_html INTEGER NOT NULL DEFAULT 1,
+              sync_history_limit INTEGER NOT NULL DEFAULT 20,
+              sync_page_size INTEGER NOT NULL DEFAULT 5,
+              download_concurrency INTEGER NOT NULL DEFAULT 2,
+              network_proxy_url TEXT NOT NULL DEFAULT '',
+              network_proxy_authorization TEXT,
               updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -1373,10 +1512,53 @@ impl ArchiveStore {
                 [],
             )?;
         }
+        self.add_column_if_missing(
+            "app_settings",
+            "export_markdown",
+            "INTEGER NOT NULL DEFAULT 1",
+        )?;
+        self.add_column_if_missing("app_settings", "export_html", "INTEGER NOT NULL DEFAULT 1")?;
+        self.add_column_if_missing(
+            "app_settings",
+            "sync_history_limit",
+            "INTEGER NOT NULL DEFAULT 20",
+        )?;
+        self.add_column_if_missing(
+            "app_settings",
+            "sync_page_size",
+            "INTEGER NOT NULL DEFAULT 5",
+        )?;
+        self.add_column_if_missing(
+            "app_settings",
+            "download_concurrency",
+            "INTEGER NOT NULL DEFAULT 2",
+        )?;
+        self.add_column_if_missing(
+            "app_settings",
+            "network_proxy_url",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
+        self.add_column_if_missing("app_settings", "network_proxy_authorization", "TEXT")?;
         self.connection.execute(
             "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?1)",
             params![SCHEMA_VERSION],
         )?;
+
+        Ok(())
+    }
+
+    fn add_column_if_missing(
+        &self,
+        table_name: &str,
+        column_name: &str,
+        column_definition: &str,
+    ) -> ArchiveStoreResult<()> {
+        if !self.table_has_column(table_name, column_name)? {
+            self.connection.execute(
+                &format!("ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"),
+                [],
+            )?;
+        }
 
         Ok(())
     }
@@ -1413,6 +1595,60 @@ fn parse_target_article_album_infos(
     raw_json: &str,
 ) -> ArchiveStoreResult<Vec<TargetArticleAlbumInfo>> {
     Ok(serde_json::from_str(raw_json)?)
+}
+
+fn settings_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ArchiveStoreSettings> {
+    let archive_dir = row.get::<_, String>(0)?;
+    let export_markdown = row.get::<_, i64>(1)?;
+    let export_html = row.get::<_, i64>(2)?;
+    let history_limit = row.get::<_, i64>(3)?;
+    let page_size = row.get::<_, i64>(4)?;
+    let download_concurrency = row.get::<_, i64>(5)?;
+    let proxy_url = row.get::<_, String>(6)?;
+    let proxy_authorization = row.get::<_, Option<String>>(7)?;
+    let proxy_url = proxy_url.trim().to_string();
+    let proxy_authorization = proxy_authorization
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    let network_proxy = (!proxy_url.is_empty()).then_some(DesktopNetworkProxySetting {
+        url: proxy_url,
+        authorization: proxy_authorization,
+    });
+
+    Ok(ArchiveStoreSettings {
+        archive_dir: PathBuf::from(archive_dir),
+        export: DesktopExportSettings {
+            markdown: database_int_to_bool(export_markdown),
+            html: database_int_to_bool(export_html),
+        },
+        sync_download: DesktopSyncDownloadSettings {
+            history_limit: database_i64_to_u32(history_limit, 20),
+            page_size: database_i64_to_u32(page_size, 5),
+            download_concurrency: database_i64_to_u32(download_concurrency, 2),
+        },
+        network_proxy,
+    })
+}
+
+fn bool_to_database_int(value: bool) -> i64 {
+    if value {
+        1
+    } else {
+        0
+    }
+}
+
+fn database_int_to_bool(value: i64) -> bool {
+    value != 0
+}
+
+fn database_i64_to_u32(value: i64, fallback: u32) -> u32 {
+    u32::try_from(value)
+        .ok()
+        .filter(|value| *value > 0)
+        .unwrap_or(fallback)
 }
 
 fn collection_task_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<CollectionTask> {

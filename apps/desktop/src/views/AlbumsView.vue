@@ -91,6 +91,14 @@ type CollectionTask = {
   error_message?: string | null;
 };
 
+type DesktopSettings = {
+  syncDownload?: {
+    historyLimit?: number;
+    pageSize?: number;
+    downloadConcurrency?: number;
+  };
+};
+
 const accounts = ref<TargetAccount[]>([]);
 const albums = ref<TargetArticleAlbumInfo[]>([]);
 const albumArticles = ref<TargetArticle[]>([]);
@@ -122,9 +130,19 @@ const albumTasks = computed(() =>
 );
 
 onMounted(async () => {
+  await loadDesktopSettings();
   await refreshAccounts();
   await refreshCollectionTasks();
 });
+
+async function loadDesktopSettings() {
+  try {
+    const settings = await invoke<DesktopSettings>('load_desktop_settings');
+    albumPageSize.value = positiveInteger(settings.syncDownload?.pageSize, albumPageSize.value);
+  } catch (error) {
+    errorMessage.value = formatError(error);
+  }
+}
 
 async function refreshAccounts() {
   try {
@@ -373,6 +391,11 @@ function formatError(error: unknown): string {
   }
 
   return String(error);
+}
+
+function positiveInteger(value: unknown, fallback: number): number {
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
 }
 </script>
 

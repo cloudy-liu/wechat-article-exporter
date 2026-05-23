@@ -105,9 +105,9 @@ fn does_not_write_plaintext_credentials_to_archive_store_paths() {
     let reading_secret = "wx-reading-cookie-token-secret-value";
 
     archive_store
-        .save_settings(&ArchiveStoreSettings {
-            archive_dir: archive_config.archive_dir.clone(),
-        })
+        .save_settings(&ArchiveStoreSettings::default_for_archive_dir(
+            archive_config.archive_dir.clone(),
+        ))
         .expect("save archive settings");
     archive_store
         .upsert_article(&ArchiveArticleInput {

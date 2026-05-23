@@ -22,6 +22,7 @@ assert.match(albumsRoute, /component: AlbumsView/);
 assert.doesNotMatch(albumsRoute, /component: PlaceholderView/);
 
 for (const command of [
+  'load_desktop_settings',
   'list_target_accounts',
   'list_target_account_albums',
   'fetch_album_page',

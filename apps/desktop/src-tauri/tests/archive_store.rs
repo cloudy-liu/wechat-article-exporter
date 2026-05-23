@@ -4,7 +4,8 @@ use std::path::Path;
 use tempfile::tempdir;
 use wechat_article_exporter_desktop_lib::archive_store::{
     initialize_archive_store_from_app_data_dir, ArchiveArticleInput, ArchiveStore,
-    ArchiveStoreConfig, ArchiveStoreSettings,
+    ArchiveStoreConfig, ArchiveStoreSettings, DesktopExportSettings, DesktopNetworkProxySetting,
+    DesktopSyncDownloadSettings,
 };
 
 #[test]
@@ -24,7 +25,7 @@ fn initializes_sqlite_schema_and_archive_directories() {
     assert!(archive_dir.join("articles").is_dir());
     assert!(archive_dir.join("assets").is_dir());
     assert!(archive_dir.join("exports").is_dir());
-    assert_eq!(store.schema_version().expect("schema version"), 5);
+    assert_eq!(store.schema_version().expect("schema version"), 6);
 }
 
 #[test]
@@ -36,7 +37,7 @@ fn initializes_from_app_data_directory_with_default_paths() {
 
     assert_eq!(snapshot.database_path, temp.path().join("archive.sqlite"));
     assert_eq!(snapshot.archive_dir, temp.path().join("archive"));
-    assert_eq!(snapshot.schema_version, 5);
+    assert_eq!(snapshot.schema_version, 6);
     assert!(snapshot.database_path.exists());
     assert!(snapshot.archive_dir.join("articles").is_dir());
     assert!(snapshot.archive_dir.join("assets").is_dir());
@@ -55,12 +56,87 @@ fn persists_settings_after_reinitialization() {
     store
         .save_settings(&ArchiveStoreSettings {
             archive_dir: config.archive_dir.clone(),
+            export: DesktopExportSettings {
+                markdown: true,
+                html: false,
+            },
+            sync_download: DesktopSyncDownloadSettings {
+                history_limit: 80,
+                page_size: 10,
+                download_concurrency: 3,
+            },
+            network_proxy: Some(DesktopNetworkProxySetting {
+                url: "http://127.0.0.1:7890".to_string(),
+                authorization: Some("Bearer local-token".to_string()),
+            }),
         })
         .expect("save settings");
     drop(store);
 
     let reopened = ArchiveStore::open(config.clone()).expect("reopen archive store");
     let settings = reopened.load_settings().expect("load settings");
+
+    assert_eq!(settings.archive_dir, config.archive_dir);
+    assert_eq!(settings.export.markdown, true);
+    assert_eq!(settings.export.html, false);
+    assert_eq!(settings.sync_download.history_limit, 80);
+    assert_eq!(settings.sync_download.page_size, 10);
+    assert_eq!(settings.sync_download.download_concurrency, 3);
+    assert_eq!(
+        settings
+            .network_proxy
+            .as_ref()
+            .map(|proxy| proxy.url.as_str()),
+        Some("http://127.0.0.1:7890")
+    );
+    assert_eq!(
+        settings
+            .network_proxy
+            .as_ref()
+            .and_then(|proxy| proxy.authorization.as_deref()),
+        Some("Bearer local-token")
+    );
+}
+
+#[test]
+fn creates_default_desktop_settings_when_missing() {
+    let temp = tempdir().expect("temp dir");
+    let config = ArchiveStoreConfig {
+        database_path: temp.path().join("archive.sqlite"),
+        archive_dir: temp.path().join("archive"),
+    };
+
+    let store = ArchiveStore::open(config.clone()).expect("open archive store");
+
+    let settings = store
+        .load_or_create_settings()
+        .expect("load default settings");
+
+    assert_eq!(settings.archive_dir, config.archive_dir);
+    assert_eq!(settings.export.markdown, true);
+    assert_eq!(settings.export.html, true);
+    assert_eq!(settings.sync_download.history_limit, 20);
+    assert_eq!(settings.sync_download.page_size, 5);
+    assert_eq!(settings.sync_download.download_concurrency, 2);
+    assert_eq!(settings.network_proxy, None);
+}
+
+#[test]
+fn empty_archive_directory_setting_falls_back_to_store_archive_dir() {
+    let temp = tempdir().expect("temp dir");
+    let config = ArchiveStoreConfig {
+        database_path: temp.path().join("archive.sqlite"),
+        archive_dir: temp.path().join("archive"),
+    };
+
+    let store = ArchiveStore::open(config.clone()).expect("open archive store");
+    store
+        .save_settings(&ArchiveStoreSettings::default_for_archive_dir(
+            Path::new("").to_path_buf(),
+        ))
+        .expect("save settings");
+
+    let settings = store.load_settings().expect("load settings");
 
     assert_eq!(settings.archive_dir, config.archive_dir);
 }

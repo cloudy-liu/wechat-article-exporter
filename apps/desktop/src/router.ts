@@ -1,7 +1,7 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router';
 import AlbumsView from './views/AlbumsView.vue';
 import ArticlesView from './views/ArticlesView.vue';
-import PlaceholderView from './views/PlaceholderView.vue';
+import SettingsView from './views/SettingsView.vue';
 import SingleArticleView from './views/SingleArticleView.vue';
 import TargetAccountsView from './views/TargetAccountsView.vue';
 
@@ -49,7 +49,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/settings',
     name: '设置',
-    component: PlaceholderView,
+    component: SettingsView,
     meta: {
       title: '设置',
       summary: '配置归档目录、导出行为、同步参数、登录凭证和高级网络代理。',

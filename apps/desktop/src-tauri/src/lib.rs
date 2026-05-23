@@ -13,9 +13,9 @@ use album_workflow::{
     AlbumPage, AlbumPageCommandRequest, AlbumWorkflowState,
 };
 use archive_store::{
-    ArchiveStore, ArchiveStoreConfig, ArchiveStoreSnapshot, ArticleListSyncRecord, CollectionTask,
-    CollectionTaskStatus, TargetAccountExport, TargetAccountInput, TargetArticleAlbumInfo,
-    TargetArticleInput,
+    ArchiveStore, ArchiveStoreConfig, ArchiveStoreSettings, ArchiveStoreSnapshot,
+    ArticleListSyncRecord, CollectionTask, CollectionTaskStatus, TargetAccountExport,
+    TargetAccountInput, TargetArticleAlbumInfo, TargetArticleInput,
 };
 use article_export::{
     ArticleArchivePreview, ArticleArchivePreviewRequest, ArticleArchivePreviewService,
@@ -39,12 +39,30 @@ use tauri::Manager;
 
 #[tauri::command]
 fn initialize_archive_store(app: tauri::AppHandle) -> Result<ArchiveStoreSnapshot, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?;
+    let app_data_dir = app_data_dir(&app)?;
 
     archive_store::initialize_archive_store_from_app_data_dir(app_data_dir)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn load_desktop_settings(app: tauri::AppHandle) -> Result<ArchiveStoreSettings, String> {
+    open_settings_store(&app)?
+        .load_or_create_settings()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn save_desktop_settings(
+    app: tauri::AppHandle,
+    settings: ArchiveStoreSettings,
+) -> Result<ArchiveStoreSettings, String> {
+    let settings_store = open_settings_store(&app)?;
+    settings_store
+        .save_settings(&settings)
+        .map_err(|error| error.to_string())?;
+    settings_store
+        .load_settings()
         .map_err(|error| error.to_string())
 }
 
@@ -421,13 +439,31 @@ fn logout_official_account_login() -> Result<(), String> {
 }
 
 fn open_archive_store(app: &tauri::AppHandle) -> Result<ArchiveStore, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
+    let default_config = ArchiveStoreConfig::from_app_data_dir(app_data_dir(app)?);
+    let settings_store =
+        ArchiveStore::open(default_config.clone()).map_err(|error| error.to_string())?;
+    let settings = settings_store
+        .load_or_create_settings()
         .map_err(|error| error.to_string())?;
+    if settings.archive_dir == default_config.archive_dir {
+        return Ok(settings_store);
+    }
+    drop(settings_store);
 
-    ArchiveStore::open(ArchiveStoreConfig::from_app_data_dir(app_data_dir))
+    ArchiveStore::open(ArchiveStoreConfig {
+        database_path: default_config.database_path,
+        archive_dir: settings.archive_dir,
+    })
+    .map_err(|error| error.to_string())
+}
+
+fn open_settings_store(app: &tauri::AppHandle) -> Result<ArchiveStore, String> {
+    ArchiveStore::open(ArchiveStoreConfig::from_app_data_dir(app_data_dir(app)?))
         .map_err(|error| error.to_string())
+}
+
+fn app_data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path().app_data_dir().map_err(|error| error.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -440,6 +476,8 @@ pub fn run() {
         .manage(TargetAccountSearchState::default())
         .invoke_handler(tauri::generate_handler![
             initialize_archive_store,
+            load_desktop_settings,
+            save_desktop_settings,
             search_target_accounts,
             add_target_account,
             list_target_accounts,
