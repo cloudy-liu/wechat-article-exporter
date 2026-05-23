@@ -192,7 +192,7 @@ where
             None,
         )?;
 
-        match self.download_article_with_task(
+        match self.download_archived_article(
             archive_store,
             &article,
             &login_secret.cookie_header,
@@ -251,7 +251,7 @@ where
             None,
         )?;
 
-        match self.download_article_with_task(
+        match self.download_archived_article(
             archive_store,
             &article,
             &login_secret.cookie_header,
@@ -278,88 +278,20 @@ where
         }
     }
 
-    fn download_article_with_task(
+    pub fn download_archived_article(
         &self,
         archive_store: &ArchiveStore,
         article: &ArchiveArticle,
         cookie_header: &str,
         proxy: Option<NetworkProxySetting>,
     ) -> ArticleHtmlDownloadResult<ArticleHtmlDownloadOutcome> {
-        let html_response = self.fetch_with_retries(ArticleHtmlDownloadResourceRequest {
-            url: article.source_url.clone(),
-            referer: MP_REFERER.to_string(),
-            user_agent: MP_USER_AGENT.to_string(),
-            cookie_header: Some(cookie_header.to_string()),
-            proxy: proxy.clone(),
-            is_article_html: true,
-        })?;
-        let html = String::from_utf8_lossy(&html_response.bytes).to_string();
-        let html_file = article_html_file_path(&article.target_account_id, &article.article_id);
-        let html_path = archive_store.archive_dir().join(&html_file);
-        if let Some(parent) = html_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::write(&html_path, html.as_bytes())?;
-
-        let mut asset_files = Vec::new();
-        for (index, asset_url) in discover_asset_urls(&html).into_iter().enumerate() {
-            let asset_response = self.fetch_with_retries(ArticleHtmlDownloadResourceRequest {
-                url: asset_url.clone(),
-                referer: article.source_url.clone(),
-                user_agent: MP_USER_AGENT.to_string(),
-                cookie_header: Some(cookie_header.to_string()),
-                proxy: proxy.clone(),
-                is_article_html: false,
-            })?;
-            let asset_file = article_asset_file_path(
-                &article.target_account_id,
-                &article.article_id,
-                index,
-                &asset_url,
-                asset_response.content_type.as_deref(),
-            );
-            let asset_path = archive_store.archive_dir().join(&asset_file);
-            if let Some(parent) = asset_path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(asset_path, &asset_response.bytes)?;
-            asset_files.push(asset_file);
-        }
-
-        archive_store.upsert_article(&ArchiveArticleInput {
-            article_id: article.article_id.clone(),
-            target_account_id: article.target_account_id.clone(),
-            title: article.title.clone(),
-            source_url: article.source_url.clone(),
-            html_file: Some(html_file.clone()),
-            markdown_file: article.markdown_file.clone(),
-        })?;
-
-        Ok(ArticleHtmlDownloadOutcome {
-            article_id: article.article_id.clone(),
-            target_account_id: article.target_account_id.clone(),
-            source_url: article.source_url.clone(),
-            html_file,
-            asset_files,
-        })
-    }
-
-    fn fetch_with_retries(
-        &self,
-        request: ArticleHtmlDownloadResourceRequest,
-    ) -> ArticleHtmlDownloadResult<ArticleHtmlDownloadResourceResponse> {
-        let mut last_error = None;
-
-        for _attempt in 0..MAX_DOWNLOAD_ATTEMPTS {
-            match self.transport.fetch(request.clone()) {
-                Ok(response) => return Ok(response),
-                Err(error) => last_error = Some(error),
-            }
-        }
-
-        Err(ArticleHtmlDownloadError::Transport(
-            last_error.unwrap_or_else(|| "unknown transport error".to_string()),
-        ))
+        download_archived_article_with_transport(
+            &self.transport,
+            archive_store,
+            article,
+            cookie_header,
+            proxy,
+        )
     }
 
     fn login_secret(&self) -> ArticleHtmlDownloadResult<OfficialAccountLoginSecret> {
@@ -370,6 +302,102 @@ where
 
         Ok(serde_json::from_str(&login_secret)?)
     }
+}
+
+pub fn download_archived_article_with_transport<T>(
+    transport: &T,
+    archive_store: &ArchiveStore,
+    article: &ArchiveArticle,
+    cookie_header: &str,
+    proxy: Option<NetworkProxySetting>,
+) -> ArticleHtmlDownloadResult<ArticleHtmlDownloadOutcome>
+where
+    T: ArticleHtmlDownloadTransport,
+{
+    let html_response = fetch_with_retries(
+        transport,
+        ArticleHtmlDownloadResourceRequest {
+            url: article.source_url.clone(),
+            referer: MP_REFERER.to_string(),
+            user_agent: MP_USER_AGENT.to_string(),
+            cookie_header: Some(cookie_header.to_string()),
+            proxy: proxy.clone(),
+            is_article_html: true,
+        },
+    )?;
+    let html = String::from_utf8_lossy(&html_response.bytes).to_string();
+    let html_file = article_html_file_path(&article.target_account_id, &article.article_id);
+    let html_path = archive_store.archive_dir().join(&html_file);
+    if let Some(parent) = html_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(&html_path, html.as_bytes())?;
+
+    let mut asset_files = Vec::new();
+    for (index, asset_url) in discover_asset_urls(&html).into_iter().enumerate() {
+        let asset_response = fetch_with_retries(
+            transport,
+            ArticleHtmlDownloadResourceRequest {
+                url: asset_url.clone(),
+                referer: article.source_url.clone(),
+                user_agent: MP_USER_AGENT.to_string(),
+                cookie_header: Some(cookie_header.to_string()),
+                proxy: proxy.clone(),
+                is_article_html: false,
+            },
+        )?;
+        let asset_file = article_asset_file_path(
+            &article.target_account_id,
+            &article.article_id,
+            index,
+            &asset_url,
+            asset_response.content_type.as_deref(),
+        );
+        let asset_path = archive_store.archive_dir().join(&asset_file);
+        if let Some(parent) = asset_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(asset_path, &asset_response.bytes)?;
+        asset_files.push(asset_file);
+    }
+
+    archive_store.upsert_article(&ArchiveArticleInput {
+        article_id: article.article_id.clone(),
+        target_account_id: article.target_account_id.clone(),
+        title: article.title.clone(),
+        source_url: article.source_url.clone(),
+        html_file: Some(html_file.clone()),
+        markdown_file: article.markdown_file.clone(),
+    })?;
+
+    Ok(ArticleHtmlDownloadOutcome {
+        article_id: article.article_id.clone(),
+        target_account_id: article.target_account_id.clone(),
+        source_url: article.source_url.clone(),
+        html_file,
+        asset_files,
+    })
+}
+
+fn fetch_with_retries<T>(
+    transport: &T,
+    request: ArticleHtmlDownloadResourceRequest,
+) -> ArticleHtmlDownloadResult<ArticleHtmlDownloadResourceResponse>
+where
+    T: ArticleHtmlDownloadTransport,
+{
+    let mut last_error = None;
+
+    for _attempt in 0..MAX_DOWNLOAD_ATTEMPTS {
+        match transport.fetch(request.clone()) {
+            Ok(response) => return Ok(response),
+            Err(error) => last_error = Some(error),
+        }
+    }
+
+    Err(ArticleHtmlDownloadError::Transport(
+        last_error.unwrap_or_else(|| "unknown transport error".to_string()),
+    ))
 }
 
 fn archive_article_from_target_article(article: TargetArticleInput) -> ArchiveArticle {

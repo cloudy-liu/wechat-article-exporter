@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router';
+import AlbumsView from './views/AlbumsView.vue';
 import ArticlesView from './views/ArticlesView.vue';
 import PlaceholderView from './views/PlaceholderView.vue';
 import SingleArticleView from './views/SingleArticleView.vue';
@@ -11,47 +12,47 @@ export const routes: RouteRecordRaw[] = [
   },
   {
     path: '/target-accounts',
-    name: 'Target Accounts',
+    name: '目标公众号',
     component: TargetAccountsView,
     meta: {
-      title: 'Target Accounts',
-      summary: 'Search, add, import, export, sync, and remove Target Official Accounts.',
+      title: '目标公众号',
+      summary: '搜索、添加、导入、导出、同步和删除本地目标公众号。',
     },
   },
   {
     path: '/articles',
-    name: 'Articles',
+    name: '文章库',
     component: ArticlesView,
     meta: {
-      title: 'Articles',
-      summary: 'Browse synchronized article lists, download content, preview archives, and export Markdown or HTML.',
+      title: '文章库',
+      summary: '浏览已同步文章，下载内容，预览归档，并导出 Markdown 或 HTML。',
     },
   },
   {
     path: '/single-article',
-    name: 'Single Article',
+    name: '单篇文章',
     component: SingleArticleView,
     meta: {
-      title: 'Single Article',
-      summary: 'Paste a WeChat article URL, collect it locally, and export it without adding the full account first.',
+      title: '单篇文章',
+      summary: '粘贴公众号文章链接，直接保存、下载和导出单篇内容。',
     },
   },
   {
     path: '/albums',
-    name: 'Albums',
-    component: PlaceholderView,
+    name: '合集下载',
+    component: AlbumsView,
     meta: {
-      title: 'Albums',
-      summary: 'Collect album article links and batch export album content as Markdown or HTML.',
+      title: '合集下载',
+      summary: '采集公众号合集文章链接，并批量导出 Markdown 或 HTML。',
     },
   },
   {
     path: '/settings',
-    name: 'Settings',
+    name: '设置',
     component: PlaceholderView,
     meta: {
-      title: 'Settings',
-      summary: 'Configure archive location, export behavior, synchronization, credentials, and advanced network proxy.',
+      title: '设置',
+      summary: '配置归档目录、导出行为、同步参数、登录凭证和高级网络代理。',
     },
   },
 ];

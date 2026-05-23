@@ -88,11 +88,11 @@ function validateSingleArticleUrl(value = singleArticleUrl.value): boolean {
 
 async function saveSingleArticle() {
   if (!validateSingleArticleUrl()) {
-    errorMessage.value = 'Enter a valid WeChat Official Account article URL.';
+    errorMessage.value = '请输入有效的公众号文章链接。';
     return;
   }
 
-  await runSingleArticleAction('Saving single article', async () => {
+  await runSingleArticleAction('正在保存单篇文章', async () => {
     const saved = await invoke<SingleArticleArchive>('save_single_article', {
       request: {
         sourceUrl: normalizeUrl(singleArticleUrl.value),
@@ -101,7 +101,7 @@ async function saveSingleArticle() {
     });
     await refreshSingleArticles();
     selectedArticleId.value = saved.articleId;
-    message.value = `Saved ${saved.title}`;
+    message.value = `已保存 ${saved.title}`;
   });
 }
 
@@ -129,11 +129,11 @@ async function refreshCollectionTasks() {
 
 async function downloadSingleArticleHtml(article = selectedArticle.value) {
   if (!article) {
-    errorMessage.value = 'Save a single article before downloading HTML.';
+    errorMessage.value = '请先保存单篇文章，再下载 HTML。';
     return;
   }
 
-  await runSingleArticleAction(`Downloading HTML for ${article.title}`, async () => {
+  await runSingleArticleAction(`正在下载 ${article.title} 的 HTML`, async () => {
     const outcome = await invoke<ArticleHtmlDownloadOutcome>('download_single_article_html', {
       request: {
         articleId: article.articleId,
@@ -141,33 +141,33 @@ async function downloadSingleArticleHtml(article = selectedArticle.value) {
       },
     });
     await refreshSingleArticles();
-    message.value = `Downloaded HTML to ${outcome.htmlFile}`;
+    message.value = `HTML 已下载到 ${outcome.htmlFile}`;
   });
 }
 
 async function previewSingleArticle(article = selectedArticle.value) {
   if (!article) {
-    errorMessage.value = 'Save and download a single article before previewing.';
+    errorMessage.value = '请先保存并下载单篇文章，再预览。';
     return;
   }
 
-  await runSingleArticleAction(`Loading preview for ${article.title}`, async () => {
+  await runSingleArticleAction(`正在加载 ${article.title} 的预览`, async () => {
     preview.value = await invoke<ArticleArchivePreview>('preview_article_archive', {
       request: {
         articleId: article.articleId,
       },
     });
-    message.value = `Preview loaded from ${preview.value.sourceHtmlFile}`;
+    message.value = `预览已从 ${preview.value.sourceHtmlFile} 加载`;
   });
 }
 
 async function exportSingleArticle(format: 'markdown' | 'html', article = selectedArticle.value) {
   if (!article) {
-    errorMessage.value = 'Save and download a single article before exporting.';
+    errorMessage.value = '请先保存并下载单篇文章，再导出。';
     return;
   }
 
-  await runSingleArticleAction(`Exporting ${format.toUpperCase()} for ${article.title}`, async () => {
+  await runSingleArticleAction(`正在导出 ${article.title} 为 ${format.toUpperCase()}`, async () => {
     const outcome = await invoke<ArticleExportOutcome>('export_article_archive', {
       request: {
         articleId: article.articleId,
@@ -176,7 +176,7 @@ async function exportSingleArticle(format: 'markdown' | 'html', article = select
     });
     await refreshSingleArticles();
     const exportedFile = format === 'markdown' ? outcome.markdownFile : outcome.htmlFile;
-    message.value = `Exported ${format.toUpperCase()} to ${exportedFile || outcome.sourceHtmlFile}`;
+    message.value = `${format.toUpperCase()} 已导出到 ${exportedFile || outcome.sourceHtmlFile}`;
   });
 }
 
@@ -215,10 +215,33 @@ function normalizeUrl(value: string): string {
 
 function formatTaskType(value: CollectionTask['task_type']): string {
   if (value === 'articleHtmlDownload') {
-    return 'Article HTML download';
+    return '文章 HTML 下载';
   }
   if (value === 'export') {
-    return 'Export';
+    return '导出';
+  }
+
+  return value;
+}
+
+function formatTaskStatus(value: CollectionTask['status']): string {
+  if (value === 'waiting') {
+    return '等待中';
+  }
+  if (value === 'running') {
+    return '运行中';
+  }
+  if (value === 'paused') {
+    return '已暂停';
+  }
+  if (value === 'cancelled') {
+    return '已取消';
+  }
+  if (value === 'succeeded') {
+    return '已成功';
+  }
+  if (value === 'failed') {
+    return '失败';
   }
 
   return value;
@@ -237,10 +260,10 @@ function formatError(error: unknown): string {
   <section class="single-article-workbench" aria-labelledby="single-article-title">
     <div class="manager-toolbar">
       <div>
-        <p class="section-label">Single article workflow</p>
-        <h3 id="single-article-title">Single Article</h3>
+        <p class="section-label">单篇文章工作流</p>
+        <h3 id="single-article-title">单篇文章</h3>
       </div>
-      <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshSingleArticles">Refresh</button>
+      <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshSingleArticles">刷新</button>
     </div>
 
     <p v-if="message" class="manager-message">{{ message }}</p>
@@ -248,7 +271,7 @@ function formatError(error: unknown): string {
 
     <form class="single-article-form" @submit.prevent="saveSingleArticle">
       <label>
-        <span>WeChat article URL</span>
+        <span>公众号文章链接</span>
         <input
           id="single-article-url-input"
           v-model="singleArticleUrl"
@@ -259,31 +282,31 @@ function formatError(error: unknown): string {
         />
       </label>
       <label>
-        <span>Title</span>
-        <input v-model="singleArticleTitle" type="text" placeholder="Optional local title" autocomplete="off" />
+        <span>标题</span>
+        <input v-model="singleArticleTitle" type="text" placeholder="可选本地标题" autocomplete="off" />
       </label>
-      <button type="submit" class="primary-button" :disabled="isBusy">Save article</button>
+      <button type="submit" class="primary-button" :disabled="isBusy">保存文章</button>
     </form>
 
-    <div class="single-article-action-bar" aria-label="Selected single article actions">
+    <div class="single-article-action-bar" aria-label="已选单篇文章操作">
       <button type="button" class="secondary-button" :disabled="isBusy || !selectedArticle" @click="downloadSingleArticleHtml()">
-        Download HTML
+        下载 HTML
       </button>
       <button type="button" class="secondary-button" :disabled="isBusy || !selectedArticle" @click="previewSingleArticle()">
-        Preview
+        预览
       </button>
       <button type="button" class="secondary-button" :disabled="isBusy || !selectedArticle" @click="exportSingleArticle('markdown')">
-        Export Markdown
+        导出 Markdown
       </button>
       <button type="button" class="secondary-button" :disabled="isBusy || !selectedArticle" @click="exportSingleArticle('html')">
-        Export HTML
+        导出 HTML
       </button>
     </div>
 
     <div class="single-article-layout">
-      <section aria-label="Saved single articles">
+      <section aria-label="已保存单篇文章">
         <div class="column-header">
-          <strong>Saved single articles</strong>
+          <strong>已保存单篇文章</strong>
           <span>{{ singleArticles.length }}</span>
         </div>
 
@@ -298,49 +321,49 @@ function formatError(error: unknown): string {
               <strong>{{ article.title }}</strong>
               <span>{{ article.sourceUrl }}</span>
               <small>
-                {{ article.htmlFile ? 'HTML downloaded' : 'HTML not downloaded' }}
-                {{ article.markdownFile ? ' - Markdown exported' : '' }}
+                {{ article.htmlFile ? 'HTML 已下载' : 'HTML 未下载' }}
+                {{ article.markdownFile ? ' - Markdown 已导出' : '' }}
               </small>
             </button>
             <div class="row-actions">
               <button type="button" class="secondary-button" :disabled="isBusy" @click="downloadSingleArticleHtml(article)">
-                Download HTML
+                下载 HTML
               </button>
               <button type="button" class="secondary-button" :disabled="isBusy" @click="previewSingleArticle(article)">
-                Preview
+                预览
               </button>
               <button type="button" class="secondary-button" :disabled="isBusy" @click="exportSingleArticle('markdown', article)">
-                Export Markdown
+                导出 Markdown
               </button>
               <button type="button" class="secondary-button" :disabled="isBusy" @click="exportSingleArticle('html', article)">
-                Export HTML
+                导出 HTML
               </button>
             </div>
           </article>
         </div>
-        <p v-else class="empty-state">No single articles saved yet.</p>
+        <p v-else class="empty-state">还没有保存单篇文章。</p>
       </section>
 
-      <section class="article-preview-panel" aria-label="Archive preview">
+      <section class="article-preview-panel" aria-label="归档预览">
         <div class="manager-toolbar">
           <div>
-            <p class="section-label">Archive preview</p>
-            <h3>{{ preview?.title || selectedArticle?.title || 'Downloaded article preview' }}</h3>
+            <p class="section-label">归档预览</p>
+            <h3>{{ preview?.title || selectedArticle?.title || '已下载文章预览' }}</h3>
           </div>
         </div>
-        <iframe v-if="preview" title="Archive preview" :srcdoc="preview.html" />
-        <p v-else class="empty-state">Save and download a single article, then select Preview.</p>
+        <iframe v-if="preview" title="归档预览" :srcdoc="preview.html" />
+        <p v-else class="empty-state">先保存并下载单篇文章，再选择预览。</p>
       </section>
     </div>
 
-    <section class="article-sync-panel" aria-label="Task progress">
+    <section class="article-sync-panel" aria-label="任务进度">
       <div class="manager-toolbar">
         <div>
-          <p class="section-label">Task progress</p>
-          <h3>Single article tasks</h3>
+          <p class="section-label">任务进度</p>
+          <h3>单篇文章任务</h3>
         </div>
         <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshCollectionTasks">
-          Refresh tasks
+          刷新任务
         </button>
       </div>
 
@@ -348,16 +371,16 @@ function formatError(error: unknown): string {
         <article v-for="task in singleArticleTasks" :key="task.task_id" class="task-row">
           <div class="task-row__summary">
             <strong>{{ formatTaskType(task.task_type) }}</strong>
-            <span>{{ task.status }} - {{ task.succeeded_items }}/{{ task.total_items }} succeeded</span>
+            <span>{{ formatTaskStatus(task.status) }} - 已成功 {{ task.succeeded_items }}/{{ task.total_items }}</span>
             <p>
-              waiting {{ task.waiting_items }} - running {{ task.running_items }} -
-              failed {{ task.failed_items }} - cancelled {{ task.cancelled_items }}
+              等待 {{ task.waiting_items }} - 运行 {{ task.running_items }} -
+              失败 {{ task.failed_items }} - 取消 {{ task.cancelled_items }}
             </p>
             <p v-if="task.error_message" class="task-row__error">{{ task.error_message }}</p>
           </div>
         </article>
       </div>
-      <p v-else class="empty-state">No single article tasks recorded yet.</p>
+      <p v-else class="empty-state">还没有单篇文章任务记录。</p>
     </section>
   </section>
 </template>

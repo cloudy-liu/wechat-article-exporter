@@ -7,7 +7,8 @@ use serde::Deserialize;
 
 use crate::archive_store::{
     ArchiveStore, ArchiveStoreError, ArticleListSyncRecord, ArticleListSyncStatus,
-    CollectionTaskItemInput, CollectionTaskItemStatus, CollectionTaskType, TargetArticleInput,
+    CollectionTaskItemInput, CollectionTaskItemStatus, CollectionTaskType, TargetArticleAlbumInfo,
+    TargetArticleInput,
 };
 use crate::official_account_login::OfficialAccountLoginSecret;
 use crate::secret_store::{SecretBackend, SecretSlot, SecretStore, SecretStoreError};
@@ -336,6 +337,9 @@ struct WeChatPublishInfo {
 #[derive(Deserialize)]
 struct WeChatArticle {
     aid: Option<String>,
+    album_id: Option<String>,
+    #[serde(default)]
+    appmsg_album_infos: Vec<WeChatArticleAlbumInfo>,
     appmsgid: Option<i64>,
     itemidx: Option<i64>,
     title: Option<String>,
@@ -350,10 +354,20 @@ struct WeChatArticle {
     copyright_type: Option<i64>,
 }
 
+#[derive(Deserialize)]
+struct WeChatArticleAlbumInfo {
+    album_id: Option<i64>,
+    id: Option<String>,
+    #[serde(default, rename = "tagSource")]
+    tag_source: i64,
+    title: Option<String>,
+}
+
 impl WeChatArticle {
     fn into_target_article(self, fakeid: &str) -> TargetArticleInput {
         let appmsgid = self.appmsgid.unwrap_or_default();
         let itemidx = self.itemidx.unwrap_or_default();
+        let album_infos = self.target_article_album_infos();
         let article_id = self
             .aid
             .filter(|value| !value.is_empty())
@@ -374,7 +388,53 @@ impl WeChatArticle {
             update_time: self.update_time.unwrap_or_default(),
             is_deleted: self.is_deleted.unwrap_or(false),
             copyright_type: self.copyright_type.unwrap_or_default(),
+            album_infos,
         }
+    }
+
+    fn target_article_album_infos(&self) -> Vec<TargetArticleAlbumInfo> {
+        let mut album_infos: Vec<TargetArticleAlbumInfo> = self
+            .appmsg_album_infos
+            .iter()
+            .filter_map(WeChatArticleAlbumInfo::to_target_article_album_info)
+            .collect();
+
+        if album_infos.is_empty() {
+            if let Some(album_id) = self
+                .album_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                album_infos.push(TargetArticleAlbumInfo {
+                    album_id: album_id.parse::<i64>().unwrap_or_default(),
+                    id: album_id.to_string(),
+                    tag_source: 0,
+                    title: String::new(),
+                });
+            }
+        }
+
+        album_infos
+    }
+}
+
+impl WeChatArticleAlbumInfo {
+    fn to_target_article_album_info(&self) -> Option<TargetArticleAlbumInfo> {
+        let id = self
+            .id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+            .or_else(|| self.album_id.map(|album_id| album_id.to_string()))?;
+
+        Some(TargetArticleAlbumInfo {
+            album_id: self.album_id.unwrap_or_default(),
+            id,
+            tag_source: self.tag_source,
+            title: self.title.clone().unwrap_or_default(),
+        })
     }
 }
 

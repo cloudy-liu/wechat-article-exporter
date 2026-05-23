@@ -34,13 +34,13 @@ for (const marker of [
   'singleArticleUrl',
   'validateSingleArticleUrl',
   'singleArticles',
-  'Save article',
-  'Download HTML',
-  'Preview',
-  'Export Markdown',
-  'Export HTML',
-  'Archive preview',
-  'Task progress',
+  '保存文章',
+  '下载 HTML',
+  '预览',
+  '导出 Markdown',
+  '导出 HTML',
+  '归档预览',
+  '任务进度',
 ]) {
   assert.match(singleArticleView, new RegExp(marker));
 }

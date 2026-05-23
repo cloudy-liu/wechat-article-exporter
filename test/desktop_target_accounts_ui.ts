@@ -26,11 +26,11 @@ for (const command of [
   assert.match(manager, new RegExp(command));
 }
 assert.match(manager, /@tauri-apps\/api\/core/);
-assert.match(manager, /Target Official Accounts/);
-assert.match(manager, /Search/);
-assert.match(manager, /Import/);
-assert.match(manager, /Export/);
-assert.match(manager, /Delete/);
+assert.match(manager, /目标公众号/);
+assert.match(manager, /搜索/);
+assert.match(manager, /导入/);
+assert.match(manager, /导出/);
+assert.match(manager, /删除/);
 assert.doesNotMatch(manager, /Public API/i);
 assert.doesNotMatch(manager, /web deployment/i);
 

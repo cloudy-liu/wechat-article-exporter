@@ -1,3 +1,4 @@
+pub mod album_workflow;
 pub mod archive_store;
 pub mod article_export;
 pub mod article_html_download;
@@ -7,9 +8,14 @@ pub mod secret_store;
 pub mod single_article_workflow;
 pub mod target_accounts;
 
+use album_workflow::{
+    AlbumDownloadRequest, AlbumExportRequest, AlbumFetchAllCommandRequest, AlbumFetchAllOutcome,
+    AlbumPage, AlbumPageCommandRequest, AlbumWorkflowState,
+};
 use archive_store::{
     ArchiveStore, ArchiveStoreConfig, ArchiveStoreSnapshot, ArticleListSyncRecord, CollectionTask,
-    CollectionTaskStatus, TargetAccountExport, TargetAccountInput, TargetArticleInput,
+    CollectionTaskStatus, TargetAccountExport, TargetAccountInput, TargetArticleAlbumInfo,
+    TargetArticleInput,
 };
 use article_export::{
     ArticleArchivePreview, ArticleArchivePreviewRequest, ArticleArchivePreviewService,
@@ -127,12 +133,100 @@ fn list_target_articles(
 }
 
 #[tauri::command]
+fn list_target_account_albums(
+    app: tauri::AppHandle,
+    fakeid: String,
+) -> Result<Vec<TargetArticleAlbumInfo>, String> {
+    open_archive_store(&app)?
+        .list_target_account_albums(&fakeid)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn latest_article_list_sync(
     app: tauri::AppHandle,
     fakeid: String,
 ) -> Result<Option<ArticleListSyncRecord>, String> {
     open_archive_store(&app)?
         .latest_article_list_sync(&fakeid)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn fetch_album_page(
+    app: tauri::AppHandle,
+    state: tauri::State<AlbumWorkflowState>,
+    request: AlbumPageCommandRequest,
+) -> Result<AlbumPage, String> {
+    let archive_store = open_archive_store(&app)?;
+    let client = album_workflow::AlbumPageClient::new(
+        state.page_transport.clone(),
+        secret_store::production_secret_store(),
+    );
+
+    client
+        .fetch_page(&archive_store, request)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn fetch_all_album_articles(
+    app: tauri::AppHandle,
+    state: tauri::State<AlbumWorkflowState>,
+    request: AlbumFetchAllCommandRequest,
+) -> Result<AlbumFetchAllOutcome, String> {
+    let archive_store = open_archive_store(&app)?;
+    let client = album_workflow::AlbumPageClient::new(
+        state.page_transport.clone(),
+        secret_store::production_secret_store(),
+    );
+
+    client
+        .fetch_all_articles(
+            &archive_store,
+            &request.fakeid,
+            &request.album_id,
+            &request.album_title,
+            request.page_size,
+            request.is_reverse,
+        )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn download_album_articles(
+    app: tauri::AppHandle,
+    state: tauri::State<AlbumWorkflowState>,
+    request: AlbumDownloadRequest,
+) -> Result<Vec<ArticleHtmlDownloadOutcome>, String> {
+    let archive_store = open_archive_store(&app)?;
+    let client = album_workflow::AlbumDownloadClient::new(
+        state.download_transport.clone(),
+        secret_store::production_secret_store(),
+    );
+
+    client
+        .download_album_articles(
+            &archive_store,
+            &request.fakeid,
+            &request.album_id,
+            request.proxy,
+        )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn export_album_articles(
+    app: tauri::AppHandle,
+    request: AlbumExportRequest,
+) -> Result<Vec<ArticleExportOutcome>, String> {
+    album_workflow::AlbumWorkflowService::new()
+        .export_album_articles(
+            &open_archive_store(&app)?,
+            &request.fakeid,
+            &request.album_id,
+            request.formats,
+        )
         .map_err(|error| error.to_string())
 }
 
@@ -339,6 +433,7 @@ fn open_archive_store(app: &tauri::AppHandle) -> Result<ArchiveStore, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(AlbumWorkflowState::default())
         .manage(ArticleHtmlDownloadState::default())
         .manage(ArticleListSyncState::default())
         .manage(OfficialAccountLoginState::default())
@@ -353,7 +448,12 @@ pub fn run() {
             import_target_accounts,
             sync_target_account_articles,
             list_target_articles,
+            list_target_account_albums,
             latest_article_list_sync,
+            fetch_album_page,
+            fetch_all_album_articles,
+            download_album_articles,
+            export_album_articles,
             download_article_html,
             save_single_article,
             list_single_articles,

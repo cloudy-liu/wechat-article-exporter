@@ -263,6 +263,7 @@ fn target_article(
         update_time: create_time + 1,
         is_deleted: false,
         copyright_type: 0,
+        album_infos: Vec::new(),
     }
 }
 

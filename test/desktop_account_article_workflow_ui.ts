@@ -34,12 +34,12 @@ for (const marker of [
   'selectedArticleIds',
   'filteredArticles',
   'toggleArticleSelection',
-  'Download selected',
-  'Preview',
-  'Export selected Markdown',
-  'Export selected HTML',
-  'Archive preview',
-  'Task progress',
+  '下载选中文章',
+  '预览',
+  '导出选中 Markdown',
+  '导出选中 HTML',
+  '归档预览',
+  '任务进度',
 ]) {
   assert.match(articlesView, new RegExp(marker));
 }

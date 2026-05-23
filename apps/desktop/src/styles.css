@@ -1052,3 +1052,156 @@ a {
   font-size: 12px;
   line-height: 1.45;
 }
+
+.albums-workbench {
+  display: grid;
+  gap: 18px;
+  padding: 36px;
+}
+
+.albums-layout {
+  display: grid;
+  grid-template-columns: 260px 260px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.albums-layout > section {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid #d8d1c4;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fbf7ee;
+}
+
+.album-choice-list {
+  display: grid;
+  gap: 10px;
+}
+
+.album-choice {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  border: 1px solid #ded5c8;
+  border-radius: 8px;
+  padding: 11px;
+  background: #fffaf0;
+  color: #18201b;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.album-choice.active {
+  border-color: #718962;
+  background: #edf4e8;
+}
+
+.album-choice:disabled {
+  cursor: not-allowed;
+  opacity: 0.64;
+}
+
+.album-choice strong,
+.album-choice span {
+  overflow-wrap: anywhere;
+}
+
+.album-choice strong {
+  font-size: 13px;
+}
+
+.album-choice span {
+  color: #687269;
+  font-size: 12px;
+}
+
+.album-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+
+.album-action-bar label {
+  display: grid;
+  gap: 6px;
+  min-width: 96px;
+}
+
+.album-action-bar label span {
+  color: #566156;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.album-action-bar input {
+  width: 96px;
+  min-height: 38px;
+  border: 1px solid #b9ad9a;
+  border-radius: 7px;
+  padding: 0 10px;
+  background: #fffaf0;
+  color: #18201b;
+  font: inherit;
+  font-size: 13px;
+}
+
+.album-summary {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #ded5c8;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fffaf0;
+}
+
+.album-summary img {
+  width: 72px;
+  height: 72px;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.album-summary div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.album-summary strong,
+.album-summary span,
+.album-summary p {
+  overflow-wrap: anywhere;
+}
+
+.album-summary strong {
+  color: #18201b;
+  font-size: 15px;
+}
+
+.album-summary span,
+.album-summary p {
+  margin: 0;
+  color: #5e685f;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.album-table .workflow-table__head,
+.album-table .workflow-table__row {
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 180px) minmax(220px, 0.9fr);
+}
+
+.album-table a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #386b55;
+  font-size: 12px;
+  line-height: 1.45;
+}

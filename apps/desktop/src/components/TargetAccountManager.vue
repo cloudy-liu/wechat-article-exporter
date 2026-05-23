@@ -118,13 +118,13 @@ onMounted(() => {
 async function searchAccounts() {
   const trimmedKeyword = keyword.value.trim();
   if (!trimmedKeyword) {
-    errorMessage.value = 'Enter a Target Official Account keyword.';
+    errorMessage.value = '请输入目标公众号关键词。';
     return;
   }
 
   isBusy.value = true;
   errorMessage.value = '';
-  message.value = 'Searching Target Official Accounts';
+  message.value = '正在搜索目标公众号';
 
   try {
     const response = await invoke<TargetAccountSearchResponse>('search_target_accounts', {
@@ -133,10 +133,10 @@ async function searchAccounts() {
       count: 5,
     });
     searchResults.value = response.list;
-    message.value = `${response.total} result${response.total === 1 ? '' : 's'} found`;
+    message.value = `找到 ${response.total} 个结果`;
   } catch (error) {
     errorMessage.value = formatError(error);
-    message.value = 'Search requires an active Official Account login';
+    message.value = '搜索需要先完成公众号平台登录';
   } finally {
     isBusy.value = false;
   }
@@ -151,7 +151,7 @@ async function addAccount(account: TargetAccount) {
     await refreshAccounts();
     selectedFakeid.value = account.fakeid;
     await refreshArticleList(account.fakeid);
-    message.value = `${account.nickname} added to the local archive`;
+    message.value = `已添加 ${account.nickname} 到本地归档`;
   } catch (error) {
     errorMessage.value = formatError(error);
   } finally {
@@ -186,7 +186,7 @@ async function deleteAccount(account: TargetAccount) {
         await refreshArticleList(selectedFakeid.value);
       }
     }
-    message.value = `${account.nickname} deleted from the local archive`;
+    message.value = `已从本地归档删除 ${account.nickname}`;
   } catch (error) {
     errorMessage.value = formatError(error);
   } finally {
@@ -206,7 +206,7 @@ async function syncArticles(account: TargetAccount) {
     status: 'running',
     error_message: null,
   };
-  message.value = `Synchronizing articles for ${account.nickname}`;
+  message.value = `正在同步 ${account.nickname} 的文章`;
 
   try {
     syncStatus.value = await invoke<ArticleListSyncRecord>('sync_target_account_articles', {
@@ -216,9 +216,9 @@ async function syncArticles(account: TargetAccount) {
     });
     await refreshArticleList(account.fakeid);
     await refreshCollectionTasks();
-    message.value = `Synced ${syncStatus.value.fetched_count} article${syncStatus.value.fetched_count === 1 ? '' : 's'}`;
+    message.value = `已同步 ${syncStatus.value.fetched_count} 篇文章`;
   } catch (error) {
-    errorMessage.value = `${formatError(error)}. You can retry the sync.`;
+    errorMessage.value = `${formatError(error)}。可以重试同步。`;
     await refreshSyncStatus(account.fakeid);
     await refreshCollectionTasks();
   } finally {
@@ -249,7 +249,7 @@ async function refreshCollectionTasks() {
 async function downloadArticleHtml(article: TargetArticle) {
   isBusy.value = true;
   errorMessage.value = '';
-  message.value = `Downloading HTML for ${article.title || article.article_id}`;
+  message.value = `正在下载 ${article.title || article.article_id} 的 HTML`;
 
   try {
     const outcome = await invoke<ArticleHtmlDownloadOutcome>('download_article_html', {
@@ -260,9 +260,9 @@ async function downloadArticleHtml(article: TargetArticle) {
       },
     });
     await refreshCollectionTasks();
-    message.value = `Downloaded HTML to ${outcome.htmlFile}`;
+    message.value = `HTML 已下载到 ${outcome.htmlFile}`;
   } catch (error) {
-    errorMessage.value = `${formatError(error)}. Check Collection tasks for retry details.`;
+    errorMessage.value = `${formatError(error)}。可在采集任务中查看重试详情。`;
     await refreshCollectionTasks();
   } finally {
     isBusy.value = false;
@@ -272,7 +272,7 @@ async function downloadArticleHtml(article: TargetArticle) {
 async function exportArticleArchive(article: TargetArticle, format: 'markdown' | 'html') {
   isBusy.value = true;
   errorMessage.value = '';
-  message.value = `Exporting ${format.toUpperCase()} for ${article.title || article.article_id}`;
+  message.value = `正在导出 ${article.title || article.article_id} 为 ${format.toUpperCase()}`;
 
   try {
     const outcome = await invoke<ArticleExportOutcome>('export_article_archive', {
@@ -283,9 +283,9 @@ async function exportArticleArchive(article: TargetArticle, format: 'markdown' |
     });
     await refreshCollectionTasks();
     const exportedFile = format === 'markdown' ? outcome.markdownFile : outcome.htmlFile;
-    message.value = `Exported ${format.toUpperCase()} to ${exportedFile || outcome.sourceHtmlFile}`;
+    message.value = `${format.toUpperCase()} 已导出到 ${exportedFile || outcome.sourceHtmlFile}`;
   } catch (error) {
-    errorMessage.value = `${formatError(error)}. Download HTML before exporting this article.`;
+    errorMessage.value = `${formatError(error)}。导出前需要先下载这篇文章的 HTML。`;
     await refreshCollectionTasks();
   } finally {
     isBusy.value = false;
@@ -299,7 +299,7 @@ async function retryFailedTask(task: CollectionTask) {
   try {
     await invoke<CollectionTask>('retry_failed_collection_task_items', { taskId: task.task_id });
     await refreshCollectionTasks();
-    message.value = 'Failed task items are ready to retry';
+    message.value = '失败项已重新进入可重试状态';
   } catch (error) {
     errorMessage.value = formatError(error);
   } finally {
@@ -314,7 +314,7 @@ async function pauseTask(task: CollectionTask) {
   try {
     await invoke<CollectionTask>('pause_collection_task', { taskId: task.task_id });
     await refreshCollectionTasks();
-    message.value = 'Collection task paused';
+    message.value = '采集任务已暂停';
   } catch (error) {
     errorMessage.value = formatError(error);
   } finally {
@@ -329,7 +329,7 @@ async function cancelTask(task: CollectionTask) {
   try {
     await invoke<CollectionTask>('cancel_collection_task', { taskId: task.task_id });
     await refreshCollectionTasks();
-    message.value = 'Collection task cancelled';
+    message.value = '采集任务已取消';
   } catch (error) {
     errorMessage.value = formatError(error);
   } finally {
@@ -344,7 +344,7 @@ async function exportAccounts() {
   try {
     const exported = await invoke<TargetAccountExport>('export_target_accounts');
     exportText.value = JSON.stringify(exported, null, 2);
-    message.value = 'Export JSON generated';
+    message.value = '导出 JSON 已生成';
   } catch (error) {
     errorMessage.value = formatError(error);
   } finally {
@@ -360,7 +360,7 @@ async function importAccounts() {
     const parsed = JSON.parse(importText.value) as TargetAccountExport;
     await invoke('import_target_accounts', { export: parsed });
     await refreshAccounts();
-    message.value = 'Target Official Accounts imported';
+    message.value = '目标公众号已导入';
   } catch (error) {
     errorMessage.value = formatError(error);
   } finally {
@@ -386,13 +386,53 @@ function formatUnixTime(value: number): string {
 
 function formatTaskType(value: CollectionTask['task_type']): string {
   if (value === 'accountArticleSync') {
-    return 'Account article sync';
+    return '公众号文章同步';
   }
   if (value === 'articleHtmlDownload') {
-    return 'Article HTML download';
+    return '文章 HTML 下载';
+  }
+  if (value === 'albumDownload') {
+    return '合集下载';
   }
   if (value === 'export') {
-    return 'Export';
+    return '导出';
+  }
+
+  return value;
+}
+
+function formatSyncStatus(value: ArticleListSyncRecord['status']): string {
+  if (value === 'running') {
+    return '同步中';
+  }
+  if (value === 'completed') {
+    return '已完成';
+  }
+  if (value === 'failed') {
+    return '失败';
+  }
+
+  return value;
+}
+
+function formatTaskStatus(value: CollectionTask['status'] | CollectionTaskItem['status']): string {
+  if (value === 'waiting') {
+    return '等待中';
+  }
+  if (value === 'running') {
+    return '运行中';
+  }
+  if (value === 'paused') {
+    return '已暂停';
+  }
+  if (value === 'cancelled') {
+    return '已取消';
+  }
+  if (value === 'succeeded') {
+    return '已成功';
+  }
+  if (value === 'failed') {
+    return '失败';
   }
 
   return value;
@@ -415,34 +455,34 @@ function networkProxySetting(): NetworkProxySetting | null {
   <section class="target-account-manager" aria-labelledby="target-account-manager-title">
     <div class="manager-toolbar">
       <div>
-        <p class="section-label">Target Official Accounts</p>
-        <h3 id="target-account-manager-title">Search and manage accounts</h3>
+        <p class="section-label">目标公众号</p>
+        <h3 id="target-account-manager-title">搜索和管理公众号</h3>
       </div>
       <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshAccounts">
-        Refresh
+        刷新
       </button>
     </div>
 
     <form class="search-row" @submit.prevent="searchAccounts">
       <label>
-        <span>Search</span>
+        <span>搜索</span>
         <input
           v-model="keyword"
           type="search"
-          placeholder="Account name or keyword"
+          placeholder="公众号名称或关键词"
           autocomplete="off"
         />
       </label>
-      <button type="submit" class="primary-button" :disabled="isBusy">Search</button>
+      <button type="submit" class="primary-button" :disabled="isBusy">搜索</button>
     </form>
 
     <p v-if="message" class="manager-message">{{ message }}</p>
     <p v-if="errorMessage" class="manager-error">{{ errorMessage }}</p>
 
     <div class="account-columns">
-      <section aria-label="Search results">
+      <section aria-label="搜索结果">
         <div class="column-header">
-          <strong>Search results</strong>
+          <strong>搜索结果</strong>
           <span>{{ searchResults.length }}</span>
         </div>
 
@@ -455,16 +495,16 @@ function networkProxySetting(): NetworkProxySetting | null {
               <p>{{ account.signature }}</p>
             </div>
             <button type="button" class="secondary-button" :disabled="isBusy" @click="addAccount(account)">
-              Add
+              添加
             </button>
           </article>
         </div>
-        <p v-else class="empty-state">No search results loaded.</p>
+        <p v-else class="empty-state">还没有加载搜索结果。</p>
       </section>
 
-      <section aria-label="Local target accounts">
+      <section aria-label="本地目标公众号">
         <div class="column-header">
-          <strong>Local archive</strong>
+          <strong>本地归档</strong>
           <span>{{ accounts.length }}</span>
         </div>
 
@@ -477,22 +517,22 @@ function networkProxySetting(): NetworkProxySetting | null {
               <p>{{ account.signature }}</p>
             </div>
             <button type="button" class="secondary-button" :disabled="isBusy" @click="deleteAccount(account)">
-              Delete
+              删除
             </button>
             <button type="button" class="secondary-button" :disabled="isBusy" @click="syncArticles(account)">
-              Sync articles
+              同步文章
             </button>
           </article>
         </div>
-        <p v-else class="empty-state">No Target Official Accounts saved yet.</p>
+        <p v-else class="empty-state">还没有保存目标公众号。</p>
       </section>
     </div>
 
-    <section class="article-sync-panel" aria-label="Article list synchronization">
+    <section class="article-sync-panel" aria-label="文章列表同步">
       <div class="manager-toolbar">
         <div>
-          <p class="section-label">Article list sync</p>
-          <h3>Sync articles for a saved account</h3>
+          <p class="section-label">同步文章</p>
+          <h3>同步已保存公众号的文章</h3>
         </div>
         <button
           type="button"
@@ -500,46 +540,46 @@ function networkProxySetting(): NetworkProxySetting | null {
           :disabled="isBusy || !selectedFakeid"
           @click="refreshArticleList(selectedFakeid)"
         >
-          Refresh articles
+          刷新文章
         </button>
       </div>
 
       <div class="sync-controls">
         <label>
-          <span>History limit</span>
+          <span>历史上限</span>
           <input v-model.number="maxItems" type="number" min="1" max="200" />
         </label>
         <label>
-          <span>Page size</span>
+          <span>每页数量</span>
           <input v-model.number="pageSize" type="number" min="1" max="20" />
         </label>
       </div>
 
       <div class="network-proxy-controls">
         <label>
-          <span>Network proxy</span>
+          <span>网络代理</span>
           <input v-model="proxyUrl" type="url" placeholder="http://127.0.0.1:7890" autocomplete="off" />
         </label>
         <label>
-          <span>Proxy authorization</span>
-          <input v-model="proxyAuthorization" type="text" placeholder="Optional header value" autocomplete="off" />
+          <span>代理授权</span>
+          <input v-model="proxyAuthorization" type="text" placeholder="可选请求头值" autocomplete="off" />
         </label>
       </div>
 
       <div class="sync-summary">
-        <strong>Latest sync</strong>
+        <strong>最近同步</strong>
         <span v-if="syncStatus">
-          {{ syncStatus.status }} - {{ syncStatus.fetched_count }}/{{ syncStatus.requested_limit }}
-          fetched<span v-if="syncStatus.total_count"> - {{ syncStatus.total_count }} upstream</span>
+          {{ formatSyncStatus(syncStatus.status) }} - 已抓取 {{ syncStatus.fetched_count }}/{{ syncStatus.requested_limit }}
+          <span v-if="syncStatus.total_count"> - 平台共 {{ syncStatus.total_count }} 篇</span>
         </span>
-        <span v-else>No sync has run for the selected account.</span>
+        <span v-else>当前公众号还没有同步记录。</span>
         <p v-if="syncStatus?.error_message">
-          {{ syncStatus.error_message }}. Retry from the local archive account row.
+          {{ syncStatus.error_message }}。可以从本地归档公众号行重新同步。
         </p>
       </div>
 
       <div class="column-header">
-        <strong>Synced articles</strong>
+        <strong>已同步文章</strong>
         <span>{{ articleList.length }}</span>
       </div>
 
@@ -548,12 +588,12 @@ function networkProxySetting(): NetworkProxySetting | null {
           <img v-if="article.cover" :src="article.cover" alt="" />
           <div>
             <strong>{{ article.title }}</strong>
-            <span>{{ article.author_name || 'Unknown author' }} - {{ formatUnixTime(article.create_time) }}</span>
+            <span>{{ article.author_name || '未知作者' }} - {{ formatUnixTime(article.create_time) }}</span>
             <p>{{ article.digest }}</p>
           </div>
           <div class="article-row__actions">
             <button type="button" class="secondary-button" :disabled="isBusy" @click="downloadArticleHtml(article)">
-              Download HTML
+              下载 HTML
             </button>
             <button
               type="button"
@@ -561,7 +601,7 @@ function networkProxySetting(): NetworkProxySetting | null {
               :disabled="isBusy"
               @click="exportArticleArchive(article, 'markdown')"
             >
-              Export Markdown
+              导出 Markdown
             </button>
             <button
               type="button"
@@ -569,22 +609,22 @@ function networkProxySetting(): NetworkProxySetting | null {
               :disabled="isBusy"
               @click="exportArticleArchive(article, 'html')"
             >
-              Export HTML
+              导出 HTML
             </button>
           </div>
         </article>
       </div>
-      <p v-else class="empty-state">No synchronized articles loaded.</p>
+      <p v-else class="empty-state">还没有加载已同步文章。</p>
     </section>
 
-    <section class="article-sync-panel" aria-label="Collection tasks">
+    <section class="article-sync-panel" aria-label="采集任务">
       <div class="manager-toolbar">
         <div>
-          <p class="section-label">Collection tasks</p>
-          <h3>Persistent task status</h3>
+          <p class="section-label">采集任务</p>
+          <h3>本地持久任务状态</h3>
         </div>
         <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshCollectionTasks">
-          Refresh tasks
+          刷新任务
         </button>
       </div>
 
@@ -592,10 +632,10 @@ function networkProxySetting(): NetworkProxySetting | null {
         <article v-for="task in collectionTasks" :key="task.task_id" class="task-row">
           <div class="task-row__summary">
             <strong>{{ formatTaskType(task.task_type) }}</strong>
-            <span>{{ task.status }} - {{ task.succeeded_items }}/{{ task.total_items }} succeeded</span>
+            <span>{{ formatTaskStatus(task.status) }} - 已成功 {{ task.succeeded_items }}/{{ task.total_items }}</span>
             <p>
-              waiting {{ task.waiting_items }} - running {{ task.running_items }} -
-              failed {{ task.failed_items }} - cancelled {{ task.cancelled_items }}
+              等待 {{ task.waiting_items }} - 运行 {{ task.running_items }} -
+              失败 {{ task.failed_items }} - 取消 {{ task.cancelled_items }}
             </p>
             <p v-if="task.error_message" class="task-row__error">{{ task.error_message }}</p>
           </div>
@@ -606,7 +646,7 @@ function networkProxySetting(): NetworkProxySetting | null {
               :disabled="isBusy || task.failed_items === 0"
               @click="retryFailedTask(task)"
             >
-              Retry failed
+              重试失败项
             </button>
             <button
               type="button"
@@ -614,7 +654,7 @@ function networkProxySetting(): NetworkProxySetting | null {
               :disabled="isBusy || task.status !== 'running'"
               @click="pauseTask(task)"
             >
-              Pause
+              暂停
             </button>
             <button
               type="button"
@@ -622,20 +662,20 @@ function networkProxySetting(): NetworkProxySetting | null {
               :disabled="isBusy || task.status === 'cancelled' || task.status === 'succeeded'"
               @click="cancelTask(task)"
             >
-              Cancel
+              取消
             </button>
           </div>
         </article>
       </div>
-      <p v-else class="empty-state">No persistent collection tasks recorded yet.</p>
+      <p v-else class="empty-state">还没有本地采集任务记录。</p>
     </section>
 
-    <section class="import-export-grid" aria-label="Import and export Target Official Accounts">
+    <section class="import-export-grid" aria-label="导入和导出目标公众号">
       <div>
         <div class="column-header">
-          <strong>Export</strong>
+          <strong>导出</strong>
           <button type="button" class="secondary-button" :disabled="isBusy" @click="exportAccounts">
-            Export
+            导出
           </button>
         </div>
         <textarea v-model="exportText" readonly spellcheck="false" />
@@ -643,12 +683,12 @@ function networkProxySetting(): NetworkProxySetting | null {
 
       <div>
         <div class="column-header">
-          <strong>Import</strong>
+          <strong>导入</strong>
           <button type="button" class="secondary-button" :disabled="isBusy" @click="importAccounts">
-            Import
+            导入
           </button>
         </div>
-        <textarea v-model="importText" spellcheck="false" placeholder="Paste exported account JSON" />
+        <textarea v-model="importText" spellcheck="false" placeholder="粘贴已导出的公众号 JSON" />
       </div>
     </section>
   </section>
