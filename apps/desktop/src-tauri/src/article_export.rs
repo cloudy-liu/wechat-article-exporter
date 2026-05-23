@@ -86,6 +86,22 @@ pub struct ArticleExportOutcome {
     pub task_id: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArticleArchivePreviewRequest {
+    pub article_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArticleArchivePreview {
+    pub article_id: String,
+    pub title: String,
+    pub source_url: String,
+    pub source_html_file: PathBuf,
+    pub html: String,
+}
+
 pub struct ArticleExportService;
 
 impl ArticleExportService {
@@ -216,6 +232,52 @@ impl ArticleExportService {
             markdown_file,
             html_file,
             task_id: task_id.to_string(),
+        })
+    }
+}
+
+pub struct ArticleArchivePreviewService;
+
+impl ArticleArchivePreviewService {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn preview_article(
+        &self,
+        archive_store: &ArchiveStore,
+        request: ArticleArchivePreviewRequest,
+    ) -> ArticleExportResult<ArticleArchivePreview> {
+        let article = archive_store
+            .get_article(&request.article_id)?
+            .ok_or_else(|| ArticleExportError::ArticleNotFound(request.article_id.clone()))?;
+        let source_html_file =
+            article
+                .html_file
+                .clone()
+                .ok_or_else(|| ArticleExportError::MissingDownloadedHtml {
+                    article_id: article.article_id.clone(),
+                    path: PathBuf::from("(empty html_file)"),
+                })?;
+        let source_html_path = archive_store.archive_dir().join(&source_html_file);
+        if !source_html_path.is_file() {
+            return Err(ArticleExportError::MissingDownloadedHtml {
+                article_id: article.article_id.clone(),
+                path: source_html_file,
+            });
+        }
+
+        let raw_html = fs::read_to_string(archive_store.archive_dir().join(&source_html_file))?;
+        let preview_dir = Path::new("exports").to_path_buf();
+        let asset_map = local_asset_reference_map(archive_store, &article, &preview_dir)?;
+        let cleaned_article_html = clean_article_html(&raw_html, &asset_map);
+
+        Ok(ArticleArchivePreview {
+            article_id: article.article_id,
+            title: article.title,
+            source_url: article.source_url,
+            source_html_file,
+            html: render_html_document(&cleaned_article_html),
         })
     }
 }

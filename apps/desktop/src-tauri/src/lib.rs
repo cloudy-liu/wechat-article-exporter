@@ -10,7 +10,10 @@ use archive_store::{
     ArchiveStore, ArchiveStoreConfig, ArchiveStoreSnapshot, ArticleListSyncRecord, CollectionTask,
     CollectionTaskStatus, TargetAccountExport, TargetAccountInput, TargetArticleInput,
 };
-use article_export::{ArticleExportOutcome, ArticleExportRequest, ArticleExportService};
+use article_export::{
+    ArticleArchivePreview, ArticleArchivePreviewRequest, ArticleArchivePreviewService,
+    ArticleExportOutcome, ArticleExportRequest, ArticleExportService,
+};
 use article_html_download::{
     ArticleHtmlDownloadOutcome, ArticleHtmlDownloadRequest, ArticleHtmlDownloadState,
 };
@@ -161,6 +164,16 @@ fn export_article_archive(
 }
 
 #[tauri::command]
+fn preview_article_archive(
+    app: tauri::AppHandle,
+    request: ArticleArchivePreviewRequest,
+) -> Result<ArticleArchivePreview, String> {
+    ArticleArchivePreviewService::new()
+        .preview_article(&open_archive_store(&app)?, request)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn list_collection_tasks(app: tauri::AppHandle) -> Result<Vec<CollectionTask>, String> {
     open_archive_store(&app)?
         .list_collection_tasks()
@@ -303,6 +316,7 @@ pub fn run() {
             list_target_articles,
             latest_article_list_sync,
             download_article_html,
+            preview_article_archive,
             export_article_archive,
             list_collection_tasks,
             retry_failed_collection_task_items,
