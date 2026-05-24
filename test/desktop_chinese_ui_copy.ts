@@ -73,7 +73,7 @@ assertHasAll(targetAccountsView, ['desktop-data-page', 'TargetAccountManager'], 
 const articlesView = read('apps/desktop/src/views/ArticlesView.vue');
 assertHasAll(
   articlesView,
-  ['文章下载操作区', '搜索文章', '导出选中 Markdown', '归档预览', '文章工作流任务'],
+  ['文章下载操作区', '搜索文章', '导出选中 Markdown', '文章列表', '筛选结果', '归档预览'],
   'ArticlesView',
 );
 

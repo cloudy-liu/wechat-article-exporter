@@ -48,6 +48,7 @@ const selectedAccountIds = ref<string[]>([]);
 const maxItems = ref(20);
 const pageSize = ref(5);
 const importFileRef = ref<HTMLInputElement | null>(null);
+const failedAvatarIds = ref<string[]>([]);
 
 const selectedAccounts = computed(() =>
   accounts.value.filter(account => selectedAccountIds.value.includes(account.fakeid)),
@@ -273,6 +274,49 @@ function isSelected(account: TargetAccount): boolean {
   return selectedAccountIds.value.includes(account.fakeid);
 }
 
+function accountAvatarSrc(account: TargetAccount): string {
+  if (failedAvatarIds.value.includes(account.fakeid)) {
+    return '';
+  }
+
+  return normalizeWechatImageUrl(account.round_head_img);
+}
+
+function normalizeWechatImageUrl(value: string): string {
+  const url = value.trim();
+  if (!url) {
+    return '';
+  }
+  if (url.startsWith('//')) {
+    return `https:${url}`;
+  }
+  if (url.startsWith('http://')) {
+    return `https://${url.slice('http://'.length)}`;
+  }
+  if (url.startsWith('https://')) {
+    return url;
+  }
+  if (url.startsWith('/')) {
+    return `https://mp.weixin.qq.com${url}`;
+  }
+
+  return url;
+}
+
+function markAvatarFailed(account: TargetAccount) {
+  if (!failedAvatarIds.value.includes(account.fakeid)) {
+    failedAvatarIds.value = [...failedAvatarIds.value, account.fakeid];
+  }
+}
+
+function accountAvatarFallback(account: TargetAccount): string {
+  return (account.nickname || account.alias || '号').trim().slice(0, 1);
+}
+
+function displayAlias(account: TargetAccount): string {
+  return account.alias || '未设置';
+}
+
 function formatError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -365,11 +409,12 @@ function positiveInteger(value: unknown, fallback: number): number {
           role="row"
         >
           <span class="account-avatar-cell">
-            <img v-if="account.round_head_img" :src="account.round_head_img" alt="" />
+            <img v-if="accountAvatarSrc(account)" :src="accountAvatarSrc(account)" alt="" @error="markAvatarFailed(account)" />
+            <span v-else class="account-avatar-fallback">{{ accountAvatarFallback(account) }}</span>
           </span>
           <div class="article-cell">
             <strong>{{ account.nickname }}</strong>
-            <span>{{ account.alias || account.fakeid }}</span>
+            <span>微信号：{{ displayAlias(account) }}</span>
           </div>
           <p class="account-description">{{ account.signature || '--' }}</p>
           <div class="account-row-actions">
@@ -399,7 +444,6 @@ function positiveInteger(value: unknown, fallback: number): number {
           </label>
           <span role="columnheader">头像</span>
           <span role="columnheader">名称</span>
-          <span role="columnheader">标识</span>
           <span role="columnheader">简介</span>
           <span role="columnheader">操作</span>
         </div>
@@ -414,13 +458,13 @@ function positiveInteger(value: unknown, fallback: number): number {
             <span>{{ isSelected(account) ? '已选' : '选择' }}</span>
           </label>
           <span class="account-avatar-cell">
-            <img v-if="account.round_head_img" :src="account.round_head_img" alt="" />
+            <img v-if="accountAvatarSrc(account)" :src="accountAvatarSrc(account)" alt="" @error="markAvatarFailed(account)" />
+            <span v-else class="account-avatar-fallback">{{ accountAvatarFallback(account) }}</span>
           </span>
           <div class="article-cell">
             <strong>{{ account.nickname || account.fakeid }}</strong>
-            <span>{{ account.alias || '--' }}</span>
+            <span>微信号：{{ displayAlias(account) }}</span>
           </div>
-          <span class="account-identifier">{{ account.fakeid }}</span>
           <p class="account-description">{{ account.signature || '--' }}</p>
           <div class="account-row-actions">
             <button type="button" class="secondary-button" :disabled="isBusy" @click="syncArticles(account)">

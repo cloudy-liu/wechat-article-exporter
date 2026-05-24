@@ -74,6 +74,16 @@ assert.doesNotMatch(
 );
 assert.doesNotMatch(
   targetAccountManager,
+  /role="columnheader">标识<|role="columnheader">fakeid<|account-identifier/,
+  'account management should not expose the internal fakeid as a visible legacy table column',
+);
+assert.match(
+  targetAccountManager,
+  /normalizeWechatImageUrl/,
+  'account avatars should normalize WeChat image URLs before rendering',
+);
+assert.doesNotMatch(
+  targetAccountManager,
   /<div class="article-workflow-summary">/,
   'account management should match the legacy AG Grid page by putting the table directly below the toolbar',
 );
@@ -102,6 +112,22 @@ assert.match(
   readRule(styles, '.account-description'),
   /-webkit-line-clamp:\s*2/,
   'long account descriptions should be clamped instead of stretching rows or overlapping actions',
+);
+
+assert.doesNotMatch(
+  articlesView,
+  /<section class="article-preview-panel"/,
+  'article download should not render the desktop-only persistent preview panel in the primary legacy table view',
+);
+assert.doesNotMatch(
+  articlesView,
+  /<section class="article-sync-panel"/,
+  'article download should not render the desktop-only persistent task panel in the primary legacy table view',
+);
+assert.match(
+  articlesView,
+  /legacy-article-table-shell/,
+  'article download should use a full-height legacy table shell under the toolbar',
 );
 
 for (const source of [articlesView, singleArticleView, albumsView]) {

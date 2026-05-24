@@ -23,7 +23,6 @@ for (const command of [
   'download_article_html',
   'preview_article_archive',
   'export_article_archive',
-  'list_collection_tasks',
 ]) {
   assert.match(articlesView, new RegExp(command));
   assert.match(lib, new RegExp(command));
@@ -38,15 +37,26 @@ for (const marker of [
   '预览',
   '导出选中 Markdown',
   '导出选中 HTML',
+  'legacy-article-table-shell',
+  'article-preview-dialog',
   '归档预览',
-  '任务进度',
 ]) {
   assert.match(articlesView, new RegExp(marker));
 }
 
 assert.doesNotMatch(articlesView, /ag-grid|AgGrid|agGrid|AG Grid|server\/api|['"`]\/api\//);
-
-const refreshCollectionTasksBody = articlesView.match(/async function refreshCollectionTasks\(\) \{[\s\S]*?\n\}/)?.[0] || '';
-assert.match(refreshCollectionTasksBody, /try \{/);
-assert.match(refreshCollectionTasksBody, /catch \(error\)/);
-assert.match(refreshCollectionTasksBody, /errorMessage\.value = formatError\(error\)/);
+assert.doesNotMatch(
+  articlesView,
+  /<section class="article-preview-panel"/,
+  'article download should not keep a desktop-only persistent preview panel in the legacy table page',
+);
+assert.doesNotMatch(
+  articlesView,
+  /<section class="article-sync-panel"/,
+  'article download should not keep a desktop-only persistent task panel in the legacy table page',
+);
+assert.doesNotMatch(
+  articlesView,
+  /list_collection_tasks|refreshCollectionTasks|文章工作流任务|任务进度/,
+  'article download should not depend on collection task panels in the primary legacy table workflow',
+);

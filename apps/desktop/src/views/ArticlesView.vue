@@ -29,20 +29,6 @@ type TargetArticle = {
   copyright_type: number;
 };
 
-type CollectionTask = {
-  task_id: string;
-  task_type: 'accountArticleSync' | 'articleHtmlDownload' | 'albumDownload' | 'export';
-  target_account_id?: string | null;
-  status: 'waiting' | 'running' | 'paused' | 'cancelled' | 'succeeded' | 'failed';
-  total_items: number;
-  waiting_items: number;
-  running_items: number;
-  succeeded_items: number;
-  failed_items: number;
-  cancelled_items: number;
-  error_message?: string | null;
-};
-
 type ArticleArchivePreview = {
   articleId: string;
   title: string;
@@ -66,7 +52,6 @@ const articles = ref<TargetArticle[]>([]);
 const selectedFakeid = ref('');
 const articleSearchInput = ref('');
 const selectedArticleIds = ref<string[]>([]);
-const collectionTasks = ref<CollectionTask[]>([]);
 const preview = ref<ArticleArchivePreview | null>(null);
 const message = ref('');
 const errorMessage = ref('');
@@ -90,15 +75,8 @@ const filteredArticles = computed(() => {
   );
 });
 
-const articleTasks = computed(() =>
-  collectionTasks.value.filter(task =>
-    ['accountArticleSync', 'articleHtmlDownload', 'export'].includes(task.task_type),
-  ),
-);
-
 onMounted(async () => {
   await refreshAccounts();
-  await refreshCollectionTasks();
 });
 
 async function handleAccountSelect(event: Event) {
@@ -128,14 +106,6 @@ async function refreshArticles() {
   selectedArticleIds.value = selectedArticleIds.value.filter(articleId =>
     articles.value.some(article => article.article_id === articleId),
   );
-}
-
-async function refreshCollectionTasks() {
-  try {
-    collectionTasks.value = await invoke<CollectionTask[]>('list_collection_tasks');
-  } catch (error) {
-    errorMessage.value = formatError(error);
-  }
 }
 
 async function selectAccount(fakeid: string) {
@@ -188,6 +158,10 @@ async function previewArticle(article: TargetArticle) {
     });
     message.value = `预览已从 ${preview.value.sourceHtmlFile} 加载`;
   });
+}
+
+function closePreview() {
+  preview.value = null;
 }
 
 async function exportArticleArchive(
@@ -252,10 +226,8 @@ async function runArticleAction(label: string, action: () => Promise<void>) {
 
   try {
     await action();
-    await refreshCollectionTasks();
   } catch (error) {
     errorMessage.value = formatError(error);
-    await refreshCollectionTasks();
   } finally {
     isBusy.value = false;
   }
@@ -271,46 +243,6 @@ function formatUnixTime(value: number): string {
   }
 
   return new Date(value * 1000).toLocaleString();
-}
-
-function formatTaskType(value: CollectionTask['task_type']): string {
-  if (value === 'accountArticleSync') {
-    return '公众号文章同步';
-  }
-  if (value === 'articleHtmlDownload') {
-    return '文章 HTML 下载';
-  }
-  if (value === 'albumDownload') {
-    return '合集下载';
-  }
-  if (value === 'export') {
-    return '导出';
-  }
-
-  return value;
-}
-
-function formatTaskStatus(value: CollectionTask['status']): string {
-  if (value === 'waiting') {
-    return '等待中';
-  }
-  if (value === 'running') {
-    return '运行中';
-  }
-  if (value === 'paused') {
-    return '已暂停';
-  }
-  if (value === 'cancelled') {
-    return '已取消';
-  }
-  if (value === 'succeeded') {
-    return '已成功';
-  }
-  if (value === 'failed') {
-    return '失败';
-  }
-
-  return value;
 }
 
 function formatError(error: unknown): string {
@@ -387,86 +319,62 @@ function formatError(error: unknown): string {
     <p v-if="message" class="manager-message">{{ message }}</p>
     <p v-if="errorMessage" class="manager-error">{{ errorMessage }}</p>
 
-    <section class="desktop-table-shell" aria-label="文章列表">
-        <div class="article-workflow-summary">
-          <strong>{{ filteredArticles.length }}</strong>
-          <span>筛选结果</span>
-          <strong>{{ selectedArticleIds.length }}</strong>
-          <span>已选择</span>
-        </div>
+    <section class="desktop-table-shell legacy-article-table-shell" aria-label="文章列表">
+      <div class="article-workflow-summary">
+        <strong>{{ filteredArticles.length }}</strong>
+        <span>筛选结果</span>
+        <strong>{{ selectedArticleIds.length }}</strong>
+        <span>已选择</span>
+      </div>
 
-        <div v-if="filteredArticles.length" class="workflow-table desktop-grid" role="table" aria-label="已同步文章">
-          <div class="workflow-table__head" role="row">
-            <span role="columnheader">选择</span>
-            <span role="columnheader">文章</span>
-            <span role="columnheader">发布时间</span>
-            <span role="columnheader">操作</span>
+      <div v-if="filteredArticles.length" class="workflow-table desktop-grid legacy-article-grid" role="table" aria-label="已同步文章">
+        <div class="workflow-table__head" role="row">
+          <span role="columnheader">选择</span>
+          <span role="columnheader">文章</span>
+          <span role="columnheader">发布时间</span>
+          <span role="columnheader">操作</span>
+        </div>
+        <article v-for="article in filteredArticles" :key="article.article_id" class="workflow-table__row" role="row">
+          <label class="row-check">
+            <input type="checkbox" :checked="isSelected(article)" @change="toggleArticleSelection(article)" />
+            <span>{{ isSelected(article) ? '已选' : '选择' }}</span>
+          </label>
+          <div class="article-cell">
+            <strong>{{ article.title || article.article_id }}</strong>
+            <span>{{ article.author_name || '未知作者' }}</span>
+            <p>{{ article.digest }}</p>
           </div>
-          <article v-for="article in filteredArticles" :key="article.article_id" class="workflow-table__row" role="row">
-            <label class="row-check">
-              <input type="checkbox" :checked="isSelected(article)" @change="toggleArticleSelection(article)" />
-              <span>{{ isSelected(article) ? '已选' : '选择' }}</span>
-            </label>
-            <div class="article-cell">
-              <strong>{{ article.title || article.article_id }}</strong>
-              <span>{{ article.author_name || '未知作者' }}</span>
-              <p>{{ article.digest }}</p>
-            </div>
-            <span class="article-date">{{ formatUnixTime(article.create_time) }}</span>
-            <div class="row-actions">
-              <button type="button" class="secondary-button" :disabled="isBusy" @click="downloadArticle(article)">
-                下载
-              </button>
-              <button type="button" class="secondary-button" :disabled="isBusy" @click="previewArticle(article)">
-                预览
-              </button>
-              <button type="button" class="secondary-button" :disabled="isBusy" @click="exportArticleArchive(article, 'markdown')">
-                Markdown
-              </button>
-              <button type="button" class="secondary-button" :disabled="isBusy" @click="exportArticleArchive(article, 'html')">
-                HTML
-              </button>
-            </div>
-          </article>
-        </div>
-        <p v-else class="empty-state">当前公众号和搜索条件下没有已同步文章。</p>
-    </section>
-
-    <section class="article-preview-panel" aria-label="归档预览">
-      <div class="manager-toolbar">
-        <div>
-          <p class="section-label">归档预览</p>
-          <h3>{{ preview?.title || '已下载文章预览' }}</h3>
-        </div>
-      </div>
-      <iframe v-if="preview" title="归档预览" :srcdoc="preview.html" />
-      <p v-else class="empty-state">在已下载文章上选择预览，即可检查本地 HTML 归档。</p>
-    </section>
-
-    <section class="article-sync-panel" aria-label="任务进度">
-      <div class="manager-toolbar">
-        <div>
-          <p class="section-label">任务进度</p>
-          <h3>文章工作流任务</h3>
-        </div>
-        <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshCollectionTasks">
-          刷新任务
-        </button>
-      </div>
-      <div v-if="articleTasks.length" class="task-list">
-        <article v-for="task in articleTasks" :key="task.task_id" class="task-row">
-          <div class="task-row__summary">
-            <strong>{{ formatTaskType(task.task_type) }}</strong>
-            <span>{{ formatTaskStatus(task.status) }} - 已成功 {{ task.succeeded_items }}/{{ task.total_items }}</span>
-            <p>
-              等待 {{ task.waiting_items }} - 运行 {{ task.running_items }} -
-              失败 {{ task.failed_items }} - 取消 {{ task.cancelled_items }}
-            </p>
-            <p v-if="task.error_message" class="task-row__error">{{ task.error_message }}</p>
+          <span class="article-date">{{ formatUnixTime(article.create_time) }}</span>
+          <div class="row-actions">
+            <button type="button" class="secondary-button" :disabled="isBusy" @click="downloadArticle(article)">
+              下载
+            </button>
+            <button type="button" class="secondary-button" :disabled="isBusy" @click="previewArticle(article)">
+              预览
+            </button>
+            <button type="button" class="secondary-button" :disabled="isBusy" @click="exportArticleArchive(article, 'markdown')">
+              Markdown
+            </button>
+            <button type="button" class="secondary-button" :disabled="isBusy" @click="exportArticleArchive(article, 'html')">
+              HTML
+            </button>
           </div>
         </article>
       </div>
-      <p v-else class="empty-state">还没有文章工作流任务记录。</p>
+      <p v-else class="empty-state">当前公众号和搜索条件下没有已同步文章。</p>
     </section>
+
+    <div v-if="preview" class="article-preview-dialog-backdrop" role="presentation" @click.self="closePreview">
+      <div class="article-preview-dialog" role="dialog" aria-modal="true" aria-label="归档预览">
+        <header class="article-preview-dialog__header">
+          <div>
+            <p class="section-label">归档预览</p>
+            <h3>{{ preview.title || '已下载文章预览' }}</h3>
+          </div>
+          <button type="button" class="secondary-button" @click="closePreview">关闭</button>
+        </header>
+        <iframe title="归档预览" :srcdoc="preview.html" />
+      </div>
+    </div>
   </section>
 </template>
