@@ -250,6 +250,7 @@ fn export_album_articles(
             &request.fakeid,
             &request.album_id,
             request.formats,
+            request.output_dir,
         )
         .map_err(|error| error.to_string())
 }
@@ -535,6 +536,7 @@ fn app_data_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(AlbumWorkflowState::default())
         .manage(ArticleHtmlDownloadState::default())
         .manage(ArticleListSyncState::default())

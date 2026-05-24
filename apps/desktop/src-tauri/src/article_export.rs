@@ -17,7 +17,10 @@ pub type ArticleExportResult<T> = Result<T, ArticleExportError>;
 pub enum ArticleExportError {
     ArchiveStore(ArchiveStoreError),
     ArticleNotFound(String),
+    ConflictingExportDestinations,
     EmptyFormatList,
+    ExportFileRequiresSingleFormat,
+    InvalidExportDestination(PathBuf),
     Io(std::io::Error),
     MissingDownloadedHtml { article_id: String, path: PathBuf },
     Parse(serde_json::Error),
@@ -30,7 +33,20 @@ impl fmt::Display for ArticleExportError {
             Self::ArticleNotFound(article_id) => {
                 write!(formatter, "article archive was not found: {article_id}")
             }
+            Self::ConflictingExportDestinations => write!(
+                formatter,
+                "only one export destination may be selected at a time"
+            ),
             Self::EmptyFormatList => write!(formatter, "at least one export format is required"),
+            Self::ExportFileRequiresSingleFormat => write!(
+                formatter,
+                "a selected export file can only be used with one export format"
+            ),
+            Self::InvalidExportDestination(path) => write!(
+                formatter,
+                "export destination must be an absolute path: {}",
+                path.display()
+            ),
             Self::Io(error) => write!(formatter, "article export filesystem error: {error}"),
             Self::MissingDownloadedHtml { article_id, path } => write!(
                 formatter,
@@ -74,6 +90,10 @@ pub enum ArticleExportFormat {
 pub struct ArticleExportRequest {
     pub article_id: String,
     pub formats: Vec<ArticleExportFormat>,
+    #[serde(default)]
+    pub output_file: Option<PathBuf>,
+    #[serde(default)]
+    pub output_dir: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -83,6 +103,8 @@ pub struct ArticleExportOutcome {
     pub source_html_file: PathBuf,
     pub markdown_file: Option<PathBuf>,
     pub html_file: Option<PathBuf>,
+    pub saved_markdown_file: Option<PathBuf>,
+    pub saved_html_file: Option<PathBuf>,
     pub task_id: String,
 }
 
@@ -142,6 +164,8 @@ impl ArticleExportService {
             &article,
             &request.formats,
             &task.task_id,
+            request.output_file.as_deref(),
+            request.output_dir.as_deref(),
         ) {
             Ok(outcome) => {
                 archive_store.update_collection_task_item_status(
@@ -170,7 +194,10 @@ impl ArticleExportService {
         article: &ArchiveArticle,
         formats: &[ArticleExportFormat],
         task_id: &str,
+        output_file: Option<&Path>,
+        output_dir: Option<&Path>,
     ) -> ArticleExportResult<ArticleExportOutcome> {
+        validate_export_destination(formats, output_file, output_dir)?;
         let source_html_file =
             article
                 .html_file
@@ -194,6 +221,8 @@ impl ArticleExportService {
         let cleaned_article_html = clean_article_html(&raw_html, &asset_map);
         let mut markdown_file = None;
         let mut html_file = None;
+        let mut saved_markdown_file = None;
+        let mut saved_html_file = None;
 
         if formats.contains(&ArticleExportFormat::Markdown) {
             let path = export_dir.join(format!("{output_stem}.md"));
@@ -215,6 +244,34 @@ impl ArticleExportService {
             html_file = Some(path);
         }
 
+        if output_file.is_some() || output_dir.is_some() {
+            let user_output_dir = selected_output_dir(output_file, output_dir)?;
+            let user_asset_map = copy_user_asset_reference_map(archive_store, article, &user_output_dir)?;
+            let user_cleaned_article_html = clean_article_html(&raw_html, &user_asset_map);
+
+            if formats.contains(&ArticleExportFormat::Markdown) {
+                let path = selected_format_output_file(
+                    output_file,
+                    output_dir,
+                    &output_stem,
+                    ArticleExportFormat::Markdown,
+                )?;
+                write_absolute_file(&path, render_markdown(article, &user_cleaned_article_html))?;
+                saved_markdown_file = Some(path);
+            }
+
+            if formats.contains(&ArticleExportFormat::Html) {
+                let path = selected_format_output_file(
+                    output_file,
+                    output_dir,
+                    &output_stem,
+                    ArticleExportFormat::Html,
+                )?;
+                write_absolute_file(&path, render_html_document(&user_cleaned_article_html))?;
+                saved_html_file = Some(path);
+            }
+        }
+
         archive_store.upsert_article(&ArchiveArticleInput {
             article_id: article.article_id.clone(),
             target_account_id: article.target_account_id.clone(),
@@ -231,6 +288,8 @@ impl ArticleExportService {
             source_html_file,
             markdown_file,
             html_file,
+            saved_markdown_file,
+            saved_html_file,
             task_id: task_id.to_string(),
         })
     }
@@ -294,6 +353,122 @@ fn write_archive_file(
     fs::write(absolute_path, content)?;
 
     Ok(())
+}
+
+fn write_absolute_file(path: &Path, content: String) -> ArticleExportResult<()> {
+    if !path.is_absolute() {
+        return Err(ArticleExportError::InvalidExportDestination(
+            path.to_path_buf(),
+        ));
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, content)?;
+
+    Ok(())
+}
+
+fn validate_export_destination(
+    formats: &[ArticleExportFormat],
+    output_file: Option<&Path>,
+    output_dir: Option<&Path>,
+) -> ArticleExportResult<()> {
+    if output_file.is_some() && output_dir.is_some() {
+        return Err(ArticleExportError::ConflictingExportDestinations);
+    }
+    if output_file.is_some() && formats.len() != 1 {
+        return Err(ArticleExportError::ExportFileRequiresSingleFormat);
+    }
+
+    for path in output_file.into_iter().chain(output_dir) {
+        if !path.is_absolute() {
+            return Err(ArticleExportError::InvalidExportDestination(
+                path.to_path_buf(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn selected_output_dir(
+    output_file: Option<&Path>,
+    output_dir: Option<&Path>,
+) -> ArticleExportResult<PathBuf> {
+    if let Some(output_dir) = output_dir {
+        return Ok(output_dir.to_path_buf());
+    }
+    if let Some(output_file) = output_file {
+        if let Some(parent) = output_file.parent() {
+            return Ok(parent.to_path_buf());
+        }
+        return Err(ArticleExportError::InvalidExportDestination(
+            output_file.to_path_buf(),
+        ));
+    }
+
+    Err(ArticleExportError::ConflictingExportDestinations)
+}
+
+fn selected_format_output_file(
+    output_file: Option<&Path>,
+    output_dir: Option<&Path>,
+    output_stem: &str,
+    format: ArticleExportFormat,
+) -> ArticleExportResult<PathBuf> {
+    if let Some(output_file) = output_file {
+        return Ok(output_file.to_path_buf());
+    }
+
+    let extension = match format {
+        ArticleExportFormat::Markdown => "md",
+        ArticleExportFormat::Html => "html",
+    };
+    let Some(output_dir) = output_dir else {
+        return Err(ArticleExportError::ConflictingExportDestinations);
+    };
+
+    Ok(output_dir.join(format!("{output_stem}.{extension}")))
+}
+
+fn copy_user_asset_reference_map(
+    archive_store: &ArchiveStore,
+    article: &ArchiveArticle,
+    user_output_dir: &Path,
+) -> ArticleExportResult<HashMap<String, String>> {
+    let asset_dir = Path::new("assets")
+        .join(safe_file_segment(&article.target_account_id))
+        .join(safe_file_segment(&article.article_id));
+    let absolute_asset_dir = archive_store.archive_dir().join(&asset_dir);
+    let mut map = HashMap::new();
+    let entries = match fs::read_dir(&absolute_asset_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(map),
+        Err(error) => return Err(error.into()),
+    };
+
+    let user_asset_dir = user_output_dir.join(&asset_dir);
+    fs::create_dir_all(&user_asset_dir)?;
+
+    for entry in entries {
+        let entry = entry?;
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
+        let file_name = entry.file_name().to_string_lossy().to_string();
+        let relative_asset_file = asset_dir.join(&file_name);
+        let user_asset_file = user_output_dir.join(&relative_asset_file);
+        fs::copy(entry.path(), &user_asset_file)?;
+
+        let html_reference = path_to_html_reference(&relative_asset_file);
+        map.insert(file_name.clone(), html_reference.clone());
+        if let Some(stripped) = strip_numbered_asset_prefix(&file_name) {
+            map.insert(stripped.to_string(), html_reference);
+        }
+    }
+
+    Ok(map)
 }
 
 fn render_html_document(article_html: &str) -> String {

@@ -1,4 +1,5 @@
 use std::fmt;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use reqwest::blocking::Client;
@@ -174,6 +175,8 @@ pub struct AlbumExportRequest {
     pub fakeid: String,
     pub album_id: String,
     pub formats: Vec<ArticleExportFormat>,
+    #[serde(default)]
+    pub output_dir: Option<PathBuf>,
 }
 
 pub trait AlbumPageTransport {
@@ -436,6 +439,7 @@ impl AlbumWorkflowService {
         fakeid: &str,
         album_id: &str,
         formats: Vec<ArticleExportFormat>,
+        output_dir: Option<PathBuf>,
     ) -> AlbumWorkflowResult<Vec<ArticleExportOutcome>> {
         if formats.is_empty() {
             return Err(ArticleExportError::EmptyFormatList.into());
@@ -454,6 +458,7 @@ impl AlbumWorkflowService {
                         fakeid: fakeid.to_string(),
                         album_id: album_id.to_string(),
                         formats: formats.clone(),
+                        output_dir: output_dir.clone(),
                     })
                     .unwrap_or_else(|_| "{}".to_string()),
                 })
@@ -479,6 +484,8 @@ impl AlbumWorkflowService {
                 &article,
                 &formats,
                 &task.task_id,
+                None,
+                output_dir.as_deref(),
             ) {
                 Ok(outcome) => {
                     archive_store.update_collection_task_item_status(

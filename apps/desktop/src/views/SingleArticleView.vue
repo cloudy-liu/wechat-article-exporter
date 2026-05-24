@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { chooseArticleExportFile } from '../exportDialog';
 
 type SingleArticleArchive = {
   articleId: string;
@@ -24,6 +25,8 @@ type ArticleExportOutcome = {
   sourceHtmlFile: string;
   markdownFile?: string | null;
   htmlFile?: string | null;
+  savedMarkdownFile?: string | null;
+  savedHtmlFile?: string | null;
   taskId: string;
 };
 
@@ -167,15 +170,24 @@ async function exportSingleArticle(format: 'markdown' | 'html', article = select
     return;
   }
 
+  const outputFile = await chooseArticleExportFile(article.title, article.articleId, format);
+  if (!outputFile) {
+    message.value = '已取消导出';
+    return;
+  }
+
   await runSingleArticleAction(`正在导出 ${article.title} 为 ${format.toUpperCase()}`, async () => {
     const outcome = await invoke<ArticleExportOutcome>('export_article_archive', {
       request: {
         articleId: article.articleId,
         formats: [format],
+        outputFile,
       },
     });
     await refreshSingleArticles();
-    const exportedFile = format === 'markdown' ? outcome.markdownFile : outcome.htmlFile;
+    const exportedFile = format === 'markdown'
+      ? outcome.savedMarkdownFile || outcome.markdownFile
+      : outcome.savedHtmlFile || outcome.htmlFile;
     message.value = `${format.toUpperCase()} 已导出到 ${exportedFile || outcome.sourceHtmlFile}`;
   });
 }

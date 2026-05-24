@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { chooseArticleExportDirectory, chooseArticleExportFile } from '../exportDialog';
 
 type TargetAccount = {
   fakeid: string;
@@ -55,6 +56,8 @@ type ArticleExportOutcome = {
   sourceHtmlFile: string;
   markdownFile?: string | null;
   htmlFile?: string | null;
+  savedMarkdownFile?: string | null;
+  savedHtmlFile?: string | null;
   taskId: string;
 };
 
@@ -219,23 +222,47 @@ async function previewArticle(article: TargetArticle) {
   });
 }
 
-async function exportArticleArchive(article: TargetArticle, format: 'markdown' | 'html') {
+async function exportArticleArchive(
+  article: TargetArticle,
+  format: 'markdown' | 'html',
+  outputFile?: string | null,
+  outputDir?: string | null,
+) {
+  const selectedOutputFile = outputFile === undefined
+    ? await chooseArticleExportFile(article.title || article.article_id, article.article_id, format)
+    : outputFile;
+  if (!selectedOutputFile && !outputDir) {
+    message.value = '已取消导出';
+    return;
+  }
+
   await runArticleAction(`正在导出 ${article.title || article.article_id} 为 ${format.toUpperCase()}`, async () => {
     const outcome = await invoke<ArticleExportOutcome>('export_article_archive', {
       request: {
         articleId: article.article_id,
         formats: [format],
+        outputFile: selectedOutputFile || null,
+        outputDir: outputDir || null,
       },
     });
-    const exportedFile = format === 'markdown' ? outcome.markdownFile : outcome.htmlFile;
+    const exportedFile = format === 'markdown'
+      ? outcome.savedMarkdownFile || outcome.markdownFile
+      : outcome.savedHtmlFile || outcome.htmlFile;
     message.value = `${format.toUpperCase()} 已导出到 ${exportedFile || outcome.sourceHtmlFile}`;
   });
 }
 
 async function exportSelectedArticles(format: 'markdown' | 'html') {
+  const outputDir = await chooseArticleExportDirectory();
+  if (!outputDir) {
+    message.value = '已取消导出';
+    return;
+  }
+
   await runSelectedArticleAction(`导出选中 ${format.toUpperCase()}`, article =>
-    exportArticleArchive(article, format),
+    exportArticleArchive(article, format, null, outputDir),
   );
+  message.value = `导出选中 ${format.toUpperCase()}已完成，共 ${selectedArticles.value.length} 篇文章，保存到 ${outputDir}`;
 }
 
 async function enrichSelectedArticles() {
