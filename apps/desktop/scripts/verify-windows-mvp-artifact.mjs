@@ -11,6 +11,7 @@ const executableName = 'wechat-article-exporter-desktop.exe';
 const executablePath = path.join(releaseDir, executableName);
 const launchSmoke = process.argv.includes('--launch-smoke');
 const requireInstaller = process.argv.includes('--require-installer');
+const localToolsDir = path.join(workspaceRoot, 'src-tauri/target/.tauri');
 
 if (process.platform !== 'win32') {
   throw new Error(`Windows MVP artifact verification must run on win32, got ${process.platform}`);
@@ -23,6 +24,7 @@ if (process.arch !== 'x64') {
 assertFile(executablePath, 'release executable');
 assertWindowsGuiSubsystem(executablePath);
 console.log(`Windows x64 release executable: ${path.relative(workspaceRoot, executablePath)}`);
+console.log(`Windows bundler local tools directory: ${path.relative(workspaceRoot, localToolsDir)}`);
 
 const bundleArtifacts = fs.existsSync(bundleDir)
   ? collectFiles(bundleDir).filter(filePath => {
@@ -32,10 +34,11 @@ const bundleArtifacts = fs.existsSync(bundleDir)
   : [];
 
 if (requireInstaller) {
-  assert.ok(
-    bundleArtifacts.length > 0,
-    `expected at least one optional installable Windows bundle artifact under ${bundleDir}`,
-  );
+  console.log('installer bundle verification enabled');
+  printInstallerDiagnostics(bundleArtifacts);
+  if (bundleArtifacts.length === 0) {
+    fail(`expected at least one optional installable Windows bundle artifact under ${bundleDir}`);
+  }
 }
 
 for (const artifact of bundleArtifacts) {
@@ -62,6 +65,35 @@ function collectFiles(directoryPath) {
     }
   }
   return files;
+}
+
+function printInstallerDiagnostics(bundleArtifacts) {
+  console.log(`installer bundle output directory: ${path.relative(workspaceRoot, bundleDir)}`);
+  console.log(`installer bundle output artifacts: ${bundleArtifacts.length}`);
+  console.log(`Windows bundler local tools directory exists: ${fs.existsSync(localToolsDir) ? 'yes' : 'no'}`);
+
+  const localToolNames = fs.existsSync(localToolsDir)
+    ? fs
+        .readdirSync(localToolsDir, { withFileTypes: true })
+        .filter(entry => entry.isDirectory())
+        .map(entry => entry.name)
+        .sort()
+    : [];
+  console.log(`Windows bundler local tools present: ${localToolNames.length > 0 ? localToolNames.join(', ') : 'none'}`);
+
+  for (const name of [
+    'HTTP_PROXY',
+    'HTTPS_PROXY',
+    'TAURI_BUNDLER_TOOLS_GITHUB_MIRROR',
+    'TAURI_BUNDLER_TOOLS_GITHUB_MIRROR_TEMPLATE',
+  ]) {
+    console.log(`${name}: ${process.env[name] ? 'set' : 'unset'}`);
+  }
+}
+
+function fail(message) {
+  console.error(message);
+  process.exit(1);
 }
 
 function assertWindowsGuiSubsystem(filePath) {
