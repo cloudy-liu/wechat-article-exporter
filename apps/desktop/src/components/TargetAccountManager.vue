@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { chooseArticleExportFile } from '../exportDialog';
 
 type TargetAccount = {
   fakeid: string;
@@ -99,6 +100,8 @@ type ArticleExportOutcome = {
   sourceHtmlFile: string;
   markdownFile?: string | null;
   htmlFile?: string | null;
+  savedMarkdownFile?: string | null;
+  savedHtmlFile?: string | null;
   taskId: string;
 };
 
@@ -292,6 +295,12 @@ async function downloadArticleHtml(article: TargetArticle) {
 }
 
 async function exportArticleArchive(article: TargetArticle, format: 'markdown' | 'html') {
+  const outputFile = await chooseArticleExportFile(article.title || article.article_id, article.article_id, format);
+  if (!outputFile) {
+    message.value = '已取消导出';
+    return;
+  }
+
   isBusy.value = true;
   errorMessage.value = '';
   message.value = `正在导出 ${article.title || article.article_id} 为 ${format.toUpperCase()}`;
@@ -301,10 +310,13 @@ async function exportArticleArchive(article: TargetArticle, format: 'markdown' |
       request: {
         articleId: article.article_id,
         formats: [format],
+        outputFile,
       },
     });
     await refreshCollectionTasks();
-    const exportedFile = format === 'markdown' ? outcome.markdownFile : outcome.htmlFile;
+    const exportedFile = format === 'markdown'
+      ? outcome.savedMarkdownFile || outcome.markdownFile
+      : outcome.savedHtmlFile || outcome.htmlFile;
     message.value = `${format.toUpperCase()} 已导出到 ${exportedFile || outcome.sourceHtmlFile}`;
   } catch (error) {
     errorMessage.value = `${formatError(error)}。导出前需要先下载这篇文章的 HTML。`;

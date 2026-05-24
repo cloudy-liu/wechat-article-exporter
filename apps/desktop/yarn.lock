@@ -297,6 +297,11 @@
   resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.8.0.tgz#0348a2b3ba5982ec67a7d569f329b4a55d7d5f1e"
   integrity sha512-ga7zdhbS2GXOMTIZRT0mYjKJtR9fivsXzsyq5U3vjDL0s6DTMwYRm0UHNjzTY5dh4+LSC68Sm/7WEiimbQNYlw==
 
+"@tauri-apps/api@^2.6.0":
+  version "2.11.0"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.11.0.tgz#00fb69996010178a5153798d4a84f6fe3a1e1182"
+  integrity sha512-7CinYODhky9lmO23xHnUFv0Xt43fbtWMyxZcLcRBlFkcgXKuEirBvHpmtJ89YMhyeGcq20Wuc47Fa4XjyniywA==
+
 "@tauri-apps/cli-darwin-arm64@2.8.0":
   version "2.8.0"
   resolved "https://registry.yarnpkg.com/@tauri-apps/cli-darwin-arm64/-/cli-darwin-arm64-2.8.0.tgz#51490c0f2e8d01861feee8d54deac7d4ea34d385"
@@ -368,6 +373,13 @@
     "@tauri-apps/cli-win32-arm64-msvc" "2.8.0"
     "@tauri-apps/cli-win32-ia32-msvc" "2.8.0"
     "@tauri-apps/cli-win32-x64-msvc" "2.8.0"
+
+"@tauri-apps/plugin-dialog@2.3.0":
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-dialog/-/plugin-dialog-2.3.0.tgz#123d2cd3d98467b9b115d23ad71eef469d6ead35"
+  integrity sha512-ylSBvYYShpGlKKh732ZuaHyJ5Ie1JR71QCXewCtsRLqGdc8Is4xWdz6t43rzXyvkItM9syNPMvFVcvjgEy+/GA==
+  dependencies:
+    "@tauri-apps/api" "^2.6.0"
 
 "@types/estree@1.0.8":
   version "1.0.8"

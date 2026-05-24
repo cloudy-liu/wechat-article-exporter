@@ -228,6 +228,7 @@ fn batch_download_and_export_album_articles_use_local_archive_and_persistent_tas
             "fakeid-1",
             "album-1",
             vec![ArticleExportFormat::Markdown, ArticleExportFormat::Html],
+            None,
         )
         .expect("export album articles");
 

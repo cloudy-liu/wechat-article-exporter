@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use tempfile::tempdir;
 use wechat_article_exporter_desktop_lib::archive_store::{
@@ -59,6 +59,8 @@ fn exports_downloaded_article_as_clean_markdown_and_html_with_local_assets() {
             ArticleExportRequest {
                 article_id: "aid-danger".to_string(),
                 formats: vec![ArticleExportFormat::Markdown, ArticleExportFormat::Html],
+                output_file: None,
+                output_dir: None,
             },
         )
         .expect("export downloaded article");
@@ -110,6 +112,111 @@ fn exports_downloaded_article_as_clean_markdown_and_html_with_local_assets() {
 }
 
 #[test]
+fn exports_article_to_user_selected_absolute_file_and_keeps_archive_record() {
+    let temp = tempdir().expect("temp dir");
+    let store = archive_store_with_article(temp.path());
+    let selected_file = temp.path().join("chosen").join("article.md");
+
+    let outcome = ArticleExportService::new()
+        .export_article(
+            &store,
+            ArticleExportRequest {
+                article_id: "aid-danger".to_string(),
+                formats: vec![ArticleExportFormat::Markdown],
+                output_file: Some(selected_file.clone()),
+                output_dir: None,
+            },
+        )
+        .expect("export to selected file");
+
+    assert_eq!(
+        outcome.saved_markdown_file.as_deref(),
+        Some(selected_file.as_path())
+    );
+    assert!(outcome.saved_html_file.is_none());
+    assert!(selected_file.is_file());
+    let saved_markdown = fs::read_to_string(&selected_file).expect("read selected markdown");
+    assert!(saved_markdown.contains("# A/B: Clean * Export?"));
+    assert!(saved_markdown.contains("![Cover](assets/fakeid-1/aid-danger/000-cover.png)"));
+    assert!(selected_file
+        .parent()
+        .expect("selected parent")
+        .join("assets/fakeid-1/aid-danger/000-cover.png")
+        .is_file());
+
+    let archive_markdown = outcome.markdown_file.as_ref().expect("archive markdown");
+    assert!(!archive_markdown.is_absolute());
+    assert!(store.archive_dir().join(archive_markdown).is_file());
+    let archived = store
+        .get_article("aid-danger")
+        .expect("load article")
+        .expect("article exists");
+    assert_eq!(
+        archived.markdown_file.as_deref(),
+        Some(archive_markdown.as_path())
+    );
+}
+
+#[test]
+fn exports_article_to_user_selected_absolute_directory_with_clear_saved_paths() {
+    let temp = tempdir().expect("temp dir");
+    let store = archive_store_with_article(temp.path());
+    let selected_dir = temp.path().join("exports-to-send");
+
+    let outcome = ArticleExportService::new()
+        .export_article(
+            &store,
+            ArticleExportRequest {
+                article_id: "aid-danger".to_string(),
+                formats: vec![ArticleExportFormat::Markdown, ArticleExportFormat::Html],
+                output_file: None,
+                output_dir: Some(selected_dir.clone()),
+            },
+        )
+        .expect("export to selected directory");
+
+    let saved_markdown_file = outcome
+        .saved_markdown_file
+        .as_ref()
+        .expect("saved markdown file");
+    let saved_html_file = outcome.saved_html_file.as_ref().expect("saved html file");
+    assert!(saved_markdown_file.starts_with(&selected_dir));
+    assert!(saved_html_file.starts_with(&selected_dir));
+    assert!(saved_markdown_file.is_absolute());
+    assert!(saved_html_file.is_absolute());
+    assert!(saved_markdown_file.is_file());
+    assert!(saved_html_file.is_file());
+    assert!(selected_dir
+        .join("assets/fakeid-1/aid-danger/000-cover.png")
+        .is_file());
+
+    let saved_html = fs::read_to_string(saved_html_file).expect("read selected html");
+    assert!(saved_html.contains("src=\"assets/fakeid-1/aid-danger/000-cover.png\""));
+}
+
+#[test]
+fn rejects_relative_user_selected_export_destinations() {
+    let temp = tempdir().expect("temp dir");
+    let store = archive_store_with_article(temp.path());
+
+    let error = ArticleExportService::new()
+        .export_article(
+            &store,
+            ArticleExportRequest {
+                article_id: "aid-danger".to_string(),
+                formats: vec![ArticleExportFormat::Markdown],
+                output_file: Some(PathBuf::from("relative.md")),
+                output_dir: None,
+            },
+        )
+        .expect_err("relative destination should fail");
+
+    assert!(error
+        .to_string()
+        .contains("export destination must be an absolute path"));
+}
+
+#[test]
 fn export_fails_with_persistent_task_state_when_downloaded_html_is_missing() {
     let temp = tempdir().expect("temp dir");
     let store = ArchiveStore::open(ArchiveStoreConfig {
@@ -134,6 +241,8 @@ fn export_fails_with_persistent_task_state_when_downloaded_html_is_missing() {
             ArticleExportRequest {
                 article_id: "aid-missing".to_string(),
                 formats: vec![ArticleExportFormat::Markdown],
+                output_file: None,
+                output_dir: None,
             },
         )
         .expect_err("missing downloaded html should fail");
@@ -154,6 +263,51 @@ fn export_fails_with_persistent_task_state_when_downloaded_html_is_missing() {
         .as_deref()
         .expect("task error")
         .contains("downloaded article HTML is missing"));
+}
+
+fn archive_store_with_article(root: &Path) -> ArchiveStore {
+    let store = ArchiveStore::open(ArchiveStoreConfig {
+        database_path: root.join("archive.sqlite"),
+        archive_dir: root.join("archive"),
+    })
+    .expect("open archive store");
+    let html_file = Path::new("articles")
+        .join("fakeid-1")
+        .join("aid-danger.html");
+    let asset_file = Path::new("assets")
+        .join("fakeid-1")
+        .join("aid-danger")
+        .join("000-cover.png");
+    fs::create_dir_all(
+        store
+            .archive_dir()
+            .join(html_file.parent().expect("html parent")),
+    )
+    .expect("create html parent");
+    fs::create_dir_all(
+        store
+            .archive_dir()
+            .join(asset_file.parent().expect("asset parent")),
+    )
+    .expect("create asset parent");
+    fs::write(store.archive_dir().join(&asset_file), b"cover").expect("write asset");
+    fs::write(
+        store.archive_dir().join(&html_file),
+        representative_article_html(),
+    )
+    .expect("write downloaded html");
+    store
+        .upsert_article(&ArchiveArticleInput {
+            article_id: "aid-danger".to_string(),
+            target_account_id: "fakeid-1".to_string(),
+            title: "A/B: Clean * Export?".to_string(),
+            source_url: "https://mp.weixin.qq.com/s/aid-danger".to_string(),
+            html_file: Some(html_file),
+            markdown_file: None,
+        })
+        .expect("store article archive");
+
+    store
 }
 
 fn representative_article_html() -> &'static str {

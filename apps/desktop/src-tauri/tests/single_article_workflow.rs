@@ -152,6 +152,8 @@ fn downloads_single_article_archive_and_keeps_preview_and_export_available() {
             ArticleExportRequest {
                 article_id: article.article_id.clone(),
                 formats: vec![ArticleExportFormat::Markdown, ArticleExportFormat::Html],
+                output_file: None,
+                output_dir: None,
             },
         )
         .expect("export downloaded single article");

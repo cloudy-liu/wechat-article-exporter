@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { chooseArticleExportDirectory } from '../exportDialog';
 
 type TargetAccount = {
   fakeid: string;
@@ -74,6 +75,8 @@ type ArticleExportOutcome = {
   sourceHtmlFile: string;
   markdownFile?: string | null;
   htmlFile?: string | null;
+  savedMarkdownFile?: string | null;
+  savedHtmlFile?: string | null;
   taskId: string;
 };
 
@@ -266,15 +269,26 @@ async function exportAlbumArticles(format: 'markdown' | 'html') {
     return;
   }
 
+  const outputDir = await chooseArticleExportDirectory();
+  if (!outputDir) {
+    message.value = '已取消导出';
+    return;
+  }
+
   await runAlbumAction(`正在导出合集为 ${format.toUpperCase()}`, async () => {
     const outcomes = await invoke<ArticleExportOutcome[]>('export_album_articles', {
       request: {
         fakeid: selectedAccount.value!.fakeid,
         albumId: selectedAlbum.value!.id,
         formats: [format],
+        outputDir,
       },
     });
-    message.value = `已导出 ${outcomes.length} 篇合集文章为 ${format.toUpperCase()}`;
+    const savedFiles = outcomes
+      .map(outcome => format === 'markdown' ? outcome.savedMarkdownFile : outcome.savedHtmlFile)
+      .filter(Boolean);
+    const savedSummary = savedFiles.length > 0 ? `，示例：${savedFiles[0]}` : '';
+    message.value = `已导出 ${outcomes.length} 篇合集文章为 ${format.toUpperCase()} 到 ${outputDir}${savedSummary}`;
   });
 }
 
