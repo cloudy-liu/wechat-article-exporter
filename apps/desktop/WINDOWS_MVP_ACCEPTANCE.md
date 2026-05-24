@@ -19,6 +19,34 @@ The required Windows x64 desktop artifact is a runnable Windows artifact:
 
 An installer bundle is optional for the MVP handoff. If local WiX or NSIS bundling is available, `yarn --cwd apps/desktop tauri:build` may also produce an installable bundle under `apps/desktop/src-tauri/target/release/bundle`, such as an `.msi` or installer `.exe`. The automated verifier supports this stricter check with `--require-installer`.
 
+For installer-focused validation, use the dedicated commands:
+
+```powershell
+yarn --cwd apps/desktop bundle:windows-installer
+yarn --cwd apps/desktop verify:windows-installer
+```
+
+The desktop bundle config enables `bundle.useLocalToolsDir`, so Tauri caches WiX and NSIS tooling under:
+
+- `apps/desktop/src-tauri/target/.tauri`
+
+This keeps installer-tool state inside the project workspace instead of the user's global cache directories, which makes Windows packaging easier to reason about and debug.
+
+If direct GitHub downloads for Tauri bundler tools are unreliable in your environment, configure one of the supported mirror environment variables before running installer bundling:
+
+- `TAURI_BUNDLER_TOOLS_GITHUB_MIRROR`
+- `TAURI_BUNDLER_TOOLS_GITHUB_MIRROR_TEMPLATE`
+
+Those mirror variables only affect the external WiX / NSIS tool download step. They do not change the desktop application binary or the core archive workflows. Local `HTTP_PROXY` and `HTTPS_PROXY` settings can also affect the Tauri bundler download client, so test installer bundling with a known-good proxy or with those variables unset if the download step fails before hash validation.
+
+When `verify:windows-installer` runs, it reports the installer output directory, installer artifact count, local Tauri tool-cache state, proxy variable state, and Tauri bundler mirror variable state. Use that output to distinguish these cases:
+
+- The release `.exe` is missing or not a Windows GUI executable.
+- No `.msi` or installer `.exe` exists under `apps/desktop/src-tauri/target/release/bundle`.
+- Tauri could not download WiX / NSIS tooling.
+- Tauri downloaded and cached tooling under `apps/desktop/src-tauri/target/.tauri`, but the local machine denied access while extracting or running the bundler tool.
+- Tauri reached the redirected GitHub release asset URL, but the network timed out before the WiX or NSIS download completed.
+
 The packaged app launches on Windows when `verify:windows-mvp --launch-smoke` can start the release executable and keep it alive long enough for the smoke check.
 
 ## Core Workflow Verification
@@ -51,6 +79,7 @@ Logout and credential clearing must work in the packaged app:
 
 - Windows x64 is the first release acceptance target; macOS and Linux packaging remain later verification targets.
 - The runnable release `.exe` is the required MVP artifact; installer bundle is optional because the default MSI bundle path may require downloading external WiX tooling on a clean Windows machine.
+- Installer bundling depends on external WiX / NSIS tooling downloads unless those tools are already cached locally or a mirror is configured for the Tauri bundler environment. Local proxy settings and Windows filesystem or security policy can also affect this external tool step.
 - The app requires a WeChat Official Account platform operator login for target account search and article list synchronization.
 - Article Reading Credentials are advanced optional enrichment and are not required for Markdown or HTML collection.
 - PDF and Word exports are deferred; Markdown and HTML are the core first-release formats.

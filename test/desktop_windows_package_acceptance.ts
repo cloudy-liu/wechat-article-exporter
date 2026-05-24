@@ -32,6 +32,17 @@ assert.equal(
   desktopPackage.scripts['verify:windows-mvp'],
   'node scripts/verify-windows-mvp-artifact.mjs',
 );
+assert.equal(
+  desktopPackage.scripts['bundle:windows-installer'],
+  'tauri bundle --bundles nsis,msi',
+);
+assert.equal(
+  desktopPackage.scripts['verify:windows-installer'],
+  'node scripts/verify-windows-mvp-artifact.mjs --require-installer',
+);
+
+const tauriConfig = JSON.parse(read('apps/desktop/src-tauri/tauri.conf.json'));
+assert.equal(tauriConfig.bundle.useLocalToolsDir, true);
 
 const mainRs = read('apps/desktop/src-tauri/src/main.rs');
 assert.match(mainRs, /windows_subsystem\s*=\s*"windows"/);
@@ -47,6 +58,16 @@ for (const marker of [
   'Windows subsystem: GUI',
   'expected Windows GUI subsystem',
   'optional installable Windows bundle artifact',
+  'Windows bundler local tools directory',
+  'installer bundle verification enabled',
+  'installer bundle output directory',
+  'installer bundle output artifacts',
+  'Windows bundler local tools directory exists',
+  'Windows bundler local tools present',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'TAURI_BUNDLER_TOOLS_GITHUB_MIRROR',
+  'TAURI_BUNDLER_TOOLS_GITHUB_MIRROR_TEMPLATE',
   'win32',
   'x64',
 ]) {
@@ -71,6 +92,18 @@ for (const marker of [
   'Logout',
   'credential clearing',
   'Known first-release limitations',
+  'bundle:windows-installer',
+  'verify:windows-installer',
+  'useLocalToolsDir',
+  'target/.tauri',
+  'TAURI_BUNDLER_TOOLS_GITHUB_MIRROR',
+  'TAURI_BUNDLER_TOOLS_GITHUB_MIRROR_TEMPLATE',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'installer artifact count',
+  'local Tauri tool-cache state',
+  'denied access',
+  'network timed out',
   'installer bundle is optional',
   'final local acceptance by the project owner',
 ]) {
