@@ -203,6 +203,14 @@ async function selectAlbum(albumId: string) {
   }
 }
 
+async function handleAlbumAccountSelect(event: Event) {
+  await selectAccount((event.target as HTMLSelectElement).value);
+}
+
+async function handleAlbumSelect(event: Event) {
+  await selectAlbum((event.target as HTMLSelectElement).value);
+}
+
 async function loadAlbumFirstPage() {
   await runAlbumAction('正在加载合集文章', async () => {
     const page = await fetchAlbumPage(null, null);
@@ -414,112 +422,94 @@ function positiveInteger(value: unknown, fallback: number): number {
 </script>
 
 <template>
-  <section class="albums-workbench" aria-labelledby="albums-workbench-title">
-    <div class="manager-toolbar">
-      <div>
-        <p class="section-label">合集工作流</p>
-        <h3 id="albums-workbench-title">合集下载</h3>
+  <section class="albums-workbench desktop-data-page" aria-labelledby="albums-workbench-title">
+    <header class="desktop-page-toolbar" aria-label="合集下载操作区">
+      <div class="desktop-control-group">
+        <label class="desktop-field">
+          <span>公众号</span>
+          <select id="album-account-selector" v-model="selectedFakeid" :disabled="isBusy" @change="handleAlbumAccountSelect">
+            <option value="">请选择公众号</option>
+            <option v-for="account in accounts" :key="account.fakeid" :value="account.fakeid">
+              {{ account.nickname || account.fakeid }}
+            </option>
+          </select>
+        </label>
+        <label class="desktop-field">
+          <span>合集</span>
+          <select v-model="selectedAlbumId" :disabled="isBusy || albums.length === 0" @change="handleAlbumSelect">
+            <option value="">请选择合集</option>
+            <option v-for="album in albums" :key="album.id" :value="album.id">
+              {{ album.title || album.id }}
+            </option>
+          </select>
+        </label>
+        <label class="desktop-field desktop-field--small">
+          <span>每页数量</span>
+          <input v-model.number="albumPageSize" type="number" min="1" max="50" />
+        </label>
       </div>
-      <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshAccounts">刷新</button>
-    </div>
+      <div class="desktop-bulk-toolbar">
+        <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshAccounts">刷新</button>
+        <button type="button" class="secondary-button" :disabled="isBusy || !selectedAlbum" @click="loadAlbumFirstPage">
+          加载第一页
+        </button>
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="isBusy || !hasMoreAlbumPages"
+          @click="loadNextAlbumPage"
+        >
+          加载下一页
+        </button>
+        <button type="button" class="secondary-button" :disabled="isBusy || !selectedAlbum" @click="fetchAllAlbumArticles">
+          抓取全部文章链接
+        </button>
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="isBusy || !selectedAlbum || albumArticles.length === 0"
+          @click="downloadAlbumArticles"
+        >
+          下载合集 HTML
+        </button>
+        <button
+          type="button"
+          class="secondary-button"
+          aria-label="导出 Markdown"
+          :disabled="isBusy || !selectedAlbum || albumArticles.length === 0"
+          @click="exportAlbumArticles('markdown')"
+        >
+          批量下载 Markdown
+        </button>
+        <button
+          type="button"
+          class="secondary-button"
+          aria-label="导出 HTML"
+          :disabled="isBusy || !selectedAlbum || albumArticles.length === 0"
+          @click="exportAlbumArticles('html')"
+        >
+          批量下载 HTML
+        </button>
+      </div>
+    </header>
 
     <p v-if="message" class="manager-message">{{ message }}</p>
     <p v-if="errorMessage" class="manager-error">{{ errorMessage }}</p>
 
-    <div class="albums-layout">
-      <section aria-label="合集公众号选择">
-        <div class="column-header">
-          <strong>目标公众号</strong>
-          <span>{{ accounts.length }}</span>
-        </div>
-        <div v-if="accounts.length" id="album-account-selector" class="account-list">
-          <button
-            v-for="account in accounts"
-            :key="account.fakeid"
-            type="button"
-            class="account-choice"
-            :class="{ active: selectedFakeid === account.fakeid }"
-            :disabled="isBusy"
-            @click="selectAccount(account.fakeid)"
-          >
-            <img v-if="account.round_head_img" :src="account.round_head_img" alt="" />
-            <span>
-              <strong>{{ account.nickname }}</strong>
-              <small>{{ account.alias || account.fakeid }}</small>
-            </span>
-          </button>
-        </div>
-        <p v-else class="empty-state">还没有保存目标公众号。</p>
-      </section>
+    <main class="album-preview-shell desktop-table-shell" aria-label="合集文章工作流">
+      <div class="article-workflow-summary">
+        <strong>{{ accounts.length }}</strong>
+        <span>公众号</span>
+        <strong>{{ albums.length }}</strong>
+        <span>合集</span>
+        <strong>{{ albumArticles.length }}</strong>
+        <span>已加载</span>
+      </div>
 
-      <section aria-label="合集选择">
-        <div class="column-header">
-          <strong>合集</strong>
-          <span>{{ albums.length }}</span>
-        </div>
-        <div v-if="albums.length" class="album-choice-list">
-          <button
-            v-for="album in albums"
-            :key="album.id"
-            type="button"
-            class="album-choice"
-            :class="{ active: selectedAlbumId === album.id }"
-            :disabled="isBusy"
-            @click="selectAlbum(album.id)"
-          >
-            <strong># {{ album.title || album.id }}</strong>
-            <span>{{ album.id }}</span>
-          </button>
-        </div>
-        <p v-else class="empty-state">请先同步公众号文章，再发现可用合集。</p>
-      </section>
+      <p v-if="!selectedFakeid" class="empty-state">请先在公众号管理中添加目标公众号，再选择要下载的合集。</p>
+      <p v-else-if="albums.length === 0" class="empty-state">请先同步公众号文章，再发现可用合集。</p>
 
-      <section aria-label="合集文章工作流">
-        <div class="album-action-bar">
-          <label>
-            <span>每页数量</span>
-            <input v-model.number="albumPageSize" type="number" min="1" max="50" />
-          </label>
-          <button type="button" class="secondary-button" :disabled="isBusy || !selectedAlbum" @click="loadAlbumFirstPage">
-            加载第一页
-          </button>
-          <button
-            type="button"
-            class="secondary-button"
-            :disabled="isBusy || !hasMoreAlbumPages"
-            @click="loadNextAlbumPage"
-          >
-            加载下一页
-          </button>
-          <button type="button" class="secondary-button" :disabled="isBusy || !selectedAlbum" @click="fetchAllAlbumArticles">
-            抓取全部文章链接
-          </button>
-          <button
-            type="button"
-            class="secondary-button"
-            :disabled="isBusy || !selectedAlbum || albumArticles.length === 0"
-            @click="downloadAlbumArticles"
-          >
-            下载合集 HTML
-          </button>
-          <button
-            type="button"
-            class="secondary-button"
-            :disabled="isBusy || !selectedAlbum || albumArticles.length === 0"
-            @click="exportAlbumArticles('markdown')"
-          >
-            导出 Markdown
-          </button>
-          <button
-            type="button"
-            class="secondary-button"
-            :disabled="isBusy || !selectedAlbum || albumArticles.length === 0"
-            @click="exportAlbumArticles('html')"
-          >
-            导出 HTML
-          </button>
-        </div>
-
+      <template v-else>
         <div v-if="albumBaseInfo" class="album-summary">
           <img v-if="albumBaseInfo.cover || albumBaseInfo.brandIcon" :src="albumBaseInfo.cover || albumBaseInfo.brandIcon" alt="" />
           <div>
@@ -549,8 +539,8 @@ function positiveInteger(value: unknown, fallback: number): number {
           </article>
         </div>
         <p v-else class="empty-state">请选择合集，然后加载或抓取文章链接。</p>
-      </section>
-    </div>
+      </template>
+    </main>
 
     <section class="article-sync-panel" aria-label="任务进度">
       <div class="manager-toolbar">

@@ -29,9 +29,9 @@ const router = read('apps/desktop/src/router.ts');
 assertHasAll(
   router,
   [
-    '目标公众号',
-    '文章库',
-    '单篇文章',
+    '公众号管理',
+    '文章下载',
+    '单篇文章下载',
     '合集下载',
     '设置',
     '浏览已同步文章',
@@ -73,21 +73,21 @@ assertHasAll(targetAccountsView, ['目标公众号工作流', '登录', '添加�
 const articlesView = read('apps/desktop/src/views/ArticlesView.vue');
 assertHasAll(
   articlesView,
-  ['公众号文章工作流', '文章库', '搜索文章', '导出选中 Markdown', '归档预览', '文章工作流任务'],
+  ['文章下载操作区', '搜索文章', '导出选中 Markdown', '归档预览', '文章工作流任务'],
   'ArticlesView',
 );
 
 const singleArticleView = read('apps/desktop/src/views/SingleArticleView.vue');
 assertHasAll(
   singleArticleView,
-  ['单篇文章工作流', '公众号文章链接', '保存文章', '已保存单篇文章', '单篇文章任务'],
+  ['请输入公众号文章链接', '公众号文章链接', '保存文章', '已保存单篇文章', '单篇文章任务'],
   'SingleArticleView',
 );
 
 const albumsView = read('apps/desktop/src/views/AlbumsView.vue');
 assertHasAll(
   albumsView,
-  ['合集工作流', '合集公众号选择', '抓取全部文章链接', '下载合集 HTML', '合集工作流任务'],
+  ['合集下载操作区', '合集文章工作流', '抓取全部文章链接', '下载合集 HTML', '合集工作流任务'],
   'AlbumsView',
 );
 
@@ -105,4 +105,3 @@ assertHasAll(
   ],
   'SettingsView',
 );
-

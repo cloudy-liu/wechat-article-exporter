@@ -12,28 +12,28 @@ export const routes: RouteRecordRaw[] = [
   },
   {
     path: '/target-accounts',
-    name: '目标公众号',
+    name: '公众号管理',
     component: TargetAccountsView,
     meta: {
-      title: '目标公众号',
+      title: '公众号管理',
       summary: '搜索、添加、导入、导出、同步和删除本地目标公众号。',
     },
   },
   {
     path: '/articles',
-    name: '文章库',
+    name: '文章下载',
     component: ArticlesView,
     meta: {
-      title: '文章库',
+      title: '文章下载',
       summary: '浏览已同步文章，下载内容，预览归档，并导出 Markdown 或 HTML。',
     },
   },
   {
     path: '/single-article',
-    name: '单篇文章',
+    name: '单篇文章下载',
     component: SingleArticleView,
     meta: {
-      title: '单篇文章',
+      title: '单篇文章下载',
       summary: '粘贴公众号文章链接，直接保存、下载和导出单篇内容。',
     },
   },

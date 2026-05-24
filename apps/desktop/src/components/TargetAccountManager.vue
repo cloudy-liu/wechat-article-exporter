@@ -491,19 +491,27 @@ function networkProxySetting(): NetworkProxySetting | null {
 </script>
 
 <template>
-  <section class="target-account-manager" aria-labelledby="target-account-manager-title">
-    <div class="manager-toolbar">
+  <section class="target-account-manager desktop-data-page" aria-labelledby="target-account-manager-title">
+    <div class="manager-toolbar desktop-page-toolbar">
       <div>
         <p class="section-label">目标公众号</p>
         <h3 id="target-account-manager-title">搜索和管理公众号</h3>
       </div>
-      <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshAccounts">
-        刷新
-      </button>
+      <div class="desktop-bulk-toolbar">
+        <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshAccounts">
+          刷新
+        </button>
+        <button type="button" class="secondary-button" :disabled="isBusy" @click="exportAccounts">
+          批量导出
+        </button>
+        <button type="button" class="secondary-button" :disabled="isBusy" @click="importAccounts">
+          批量导入
+        </button>
+      </div>
     </div>
 
-    <form class="search-row" @submit.prevent="searchAccounts">
-      <label>
+    <form class="search-row desktop-control-group" @submit.prevent="searchAccounts">
+      <label class="desktop-field">
         <span>搜索</span>
         <input
           v-model="keyword"
@@ -518,8 +526,8 @@ function networkProxySetting(): NetworkProxySetting | null {
     <p v-if="message" class="manager-message">{{ message }}</p>
     <p v-if="errorMessage" class="manager-error">{{ errorMessage }}</p>
 
-    <div class="account-columns">
-      <section aria-label="搜索结果">
+    <div class="account-columns desktop-table-shell">
+      <section class="desktop-grid" aria-label="搜索结果">
         <div class="column-header">
           <strong>搜索结果</strong>
           <span>{{ searchResults.length }}</span>
@@ -541,7 +549,7 @@ function networkProxySetting(): NetworkProxySetting | null {
         <p v-else class="empty-state">还没有加载搜索结果。</p>
       </section>
 
-      <section aria-label="本地目标公众号">
+      <section class="desktop-grid" aria-label="本地目标公众号">
         <div class="column-header">
           <strong>本地归档</strong>
           <span>{{ accounts.length }}</span>

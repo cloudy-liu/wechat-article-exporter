@@ -9,8 +9,8 @@ const navItems = computed(() => routes.filter(item => item.path !== '/' && item.
 </script>
 
 <template>
-  <div class="app-shell">
-    <aside class="sidebar">
+  <div class="legacy-dashboard-shell app-shell">
+    <aside class="legacy-sidebar sidebar">
       <div class="brand">
         <p class="brand-kicker">本地桌面端</p>
         <h1>公众号文章导出工具</h1>
@@ -30,9 +30,9 @@ const navItems = computed(() => routes.filter(item => item.path !== '/' && item.
     </aside>
 
     <main class="workspace">
-      <header class="workspace-header">
+      <header class="legacy-topbar workspace-header">
+        <h2>{{ String(route.name || '公众号管理') }}</h2>
         <p class="workspace-kicker">公众号作者工作台</p>
-        <h2>{{ String(route.name || '目标公众号') }}</h2>
       </header>
 
       <RouterView />
