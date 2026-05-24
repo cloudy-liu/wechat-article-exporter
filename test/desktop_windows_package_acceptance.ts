@@ -33,12 +33,19 @@ assert.equal(
   'node scripts/verify-windows-mvp-artifact.mjs',
 );
 
+const mainRs = read('apps/desktop/src-tauri/src/main.rs');
+assert.match(mainRs, /windows_subsystem\s*=\s*"windows"/);
+assert.match(mainRs, /not\(debug_assertions\)/);
+
 const verifier = read('apps/desktop/scripts/verify-windows-mvp-artifact.mjs');
 for (const marker of [
   'src-tauri/target/release',
   '--launch-smoke',
   '--require-installer',
   '.exe',
+  'assertWindowsGuiSubsystem',
+  'Windows subsystem: GUI',
+  'expected Windows GUI subsystem',
   'optional installable Windows bundle artifact',
   'win32',
   'x64',

@@ -21,6 +21,7 @@ if (process.arch !== 'x64') {
 }
 
 assertFile(executablePath, 'release executable');
+assertWindowsGuiSubsystem(executablePath);
 console.log(`Windows x64 release executable: ${path.relative(workspaceRoot, executablePath)}`);
 
 const bundleArtifacts = fs.existsSync(bundleDir)
@@ -61,6 +62,39 @@ function collectFiles(directoryPath) {
     }
   }
   return files;
+}
+
+function assertWindowsGuiSubsystem(filePath) {
+  const binary = fs.readFileSync(filePath);
+  const dosSignature = binary.subarray(0, 2).toString('ascii');
+  assert.equal(dosSignature, 'MZ', `release executable is not a Windows PE file: ${filePath}`);
+
+  const peOffset = binary.readUInt32LE(0x3c);
+  const peSignature = binary.subarray(peOffset, peOffset + 4).toString('ascii');
+  assert.equal(peSignature, 'PE\0\0', `release executable has an invalid PE signature: ${filePath}`);
+
+  const optionalHeaderOffset = peOffset + 24;
+  const subsystemOffset = optionalHeaderOffset + 68;
+  const subsystem = binary.readUInt16LE(subsystemOffset);
+  const subsystemLabel = formatWindowsSubsystem(subsystem);
+
+  assert.equal(
+    subsystem,
+    2,
+    `expected Windows GUI subsystem for ${path.basename(filePath)}, got ${subsystemLabel}`,
+  );
+  console.log(`Windows subsystem: GUI (${subsystem})`);
+}
+
+function formatWindowsSubsystem(value) {
+  if (value === 2) {
+    return 'GUI (2)';
+  }
+  if (value === 3) {
+    return 'Console (3)';
+  }
+
+  return `unknown (${value})`;
 }
 
 async function verifyLaunchSmoke(filePath) {
