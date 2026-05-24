@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink, RouterView, useRoute } from 'vue-router';
+import OfficialAccountLoginPanel from './components/OfficialAccountLoginPanel.vue';
 import { routes } from './router';
 
 const route = useRoute();
@@ -27,12 +28,12 @@ const navItems = computed(() => routes.filter(item => item.path !== '/' && item.
           <span>{{ item.name }}</span>
         </RouterLink>
       </nav>
+      <OfficialAccountLoginPanel />
     </aside>
 
     <main class="workspace">
       <header class="legacy-topbar workspace-header">
         <h2>{{ String(route.name || '公众号管理') }}</h2>
-        <p class="workspace-kicker">公众号作者工作台</p>
       </header>
 
       <RouterView />

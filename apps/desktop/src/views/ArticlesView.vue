@@ -61,25 +61,12 @@ type ArticleExportOutcome = {
   taskId: string;
 };
 
-type ArticleReadingCredentialStatus = {
-  configured: boolean;
-  valid: boolean;
-  expired: boolean;
-  expiresAtUnix?: number | null;
-};
-
-type ArticleReadingEnrichmentOutcome = {
-  enrichedCount: number;
-  skippedCount: number;
-};
-
 const accounts = ref<TargetAccount[]>([]);
 const articles = ref<TargetArticle[]>([]);
 const selectedFakeid = ref('');
 const articleSearchInput = ref('');
 const selectedArticleIds = ref<string[]>([]);
 const collectionTasks = ref<CollectionTask[]>([]);
-const readingCredentialStatus = ref<ArticleReadingCredentialStatus | null>(null);
 const preview = ref<ArticleArchivePreview | null>(null);
 const message = ref('');
 const errorMessage = ref('');
@@ -109,23 +96,8 @@ const articleTasks = computed(() =>
   ),
 );
 
-const readingCredentialLabel = computed(() => {
-  if (!readingCredentialStatus.value?.configured) {
-    return '未配置';
-  }
-  if (readingCredentialStatus.value.valid) {
-    return '可用';
-  }
-  if (readingCredentialStatus.value.expired) {
-    return '已过期';
-  }
-
-  return '不可用';
-});
-
 onMounted(async () => {
   await refreshAccounts();
-  await refreshReadingCredentialStatus();
   await refreshCollectionTasks();
 });
 
@@ -161,14 +133,6 @@ async function refreshArticles() {
 async function refreshCollectionTasks() {
   try {
     collectionTasks.value = await invoke<CollectionTask[]>('list_collection_tasks');
-  } catch (error) {
-    errorMessage.value = formatError(error);
-  }
-}
-
-async function refreshReadingCredentialStatus() {
-  try {
-    readingCredentialStatus.value = await invoke<ArticleReadingCredentialStatus>('load_article_reading_credential_status');
   } catch (error) {
     errorMessage.value = formatError(error);
   }
@@ -267,35 +231,6 @@ async function exportSelectedArticles(format: 'markdown' | 'html') {
     exportArticleArchive(article, format, null, outputDir),
   );
   message.value = `导出选中 ${format.toUpperCase()}已完成，共 ${selectedArticles.value.length} 篇文章，保存到 ${outputDir}`;
-}
-
-async function enrichSelectedArticles() {
-  if (selectedArticleIds.value.length === 0) {
-    errorMessage.value = '请至少选择一篇文章。';
-    return;
-  }
-  if (!readingCredentialStatus.value?.valid) {
-    errorMessage.value = '阅读凭证不可用，请先在设置页保存有效阅读凭证。';
-    return;
-  }
-
-  isBusy.value = true;
-  errorMessage.value = '';
-  message.value = '正在使用阅读凭证富集选中文章';
-
-  try {
-    const outcome = await invoke<ArticleReadingEnrichmentOutcome>('enrich_selected_articles_with_reading_credential', {
-      request: {
-        fakeid: selectedFakeid.value,
-        articleIds: selectedArticleIds.value,
-      },
-    });
-    message.value = `阅读凭证富集完成：成功 ${outcome.enrichedCount} 篇，跳过 ${outcome.skippedCount} 篇`;
-  } catch (error) {
-    errorMessage.value = formatError(error);
-  } finally {
-    isBusy.value = false;
-  }
 }
 
 async function runSelectedArticleAction(label: string, action: (article: TargetArticle) => Promise<void>) {
@@ -459,28 +394,6 @@ function formatError(error: unknown): string {
           <strong>{{ selectedArticleIds.length }}</strong>
           <span>已选择</span>
         </div>
-
-        <section class="reading-enrichment-panel" aria-label="阅读凭证高级富集">
-          <div>
-            <p class="section-label">阅读凭证 · 高级可选</p>
-            <h4>阅读数、点赞、分享、留言富集</h4>
-            <p>下载和导出不会被阅读凭证阻塞。阅读凭证只用于补充阅读数、点赞、分享和留言数据。</p>
-          </div>
-          <div class="reading-enrichment-panel__actions">
-            <span>阅读凭证：{{ readingCredentialLabel }}</span>
-            <button
-              type="button"
-              class="secondary-button"
-              :disabled="isBusy || selectedArticleIds.length === 0 || !readingCredentialStatus?.valid"
-              @click="enrichSelectedArticles"
-            >
-              富集选中文章
-            </button>
-            <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshReadingCredentialStatus">
-              刷新凭证状态
-            </button>
-          </div>
-        </section>
 
         <div v-if="filteredArticles.length" class="workflow-table desktop-grid" role="table" aria-label="已同步文章">
           <div class="workflow-table__head" role="row">

@@ -173,20 +173,14 @@ function formatError(error: unknown): string {
 </script>
 
 <template>
-  <section class="login-panel" aria-labelledby="official-account-login-title">
-    <div class="login-panel__copy">
-      <p class="section-label">登录边界</p>
-      <h3 id="official-account-login-title">公众号平台登录</h3>
-      <p>
-        使用公众号平台运营者账号登录后，可以搜索目标公众号、同步文章列表，并在本地导出 Markdown 或 HTML。
-      </p>
-      <p class="login-panel__notice">
-        不支持个人微信号登录。当前桌面端面向公众号作者、运营者和内容研究场景。
-      </p>
+  <section class="legacy-login-strip" aria-labelledby="official-account-login-title" aria-live="polite">
+    <div class="legacy-login-heading">
+      <strong id="official-account-login-title">公众号平台登录</strong>
+      <span>不支持个人微信号登录</span>
     </div>
 
-    <div class="login-panel__control" aria-live="polite">
-      <div v-if="account" class="login-account">
+    <div class="legacy-login-body">
+      <div v-if="account" class="legacy-login-account">
         <img v-if="account.avatarUrl" :src="account.avatarUrl" alt="" />
         <div>
           <strong>{{ account.nickname }}</strong>
@@ -194,14 +188,15 @@ function formatError(error: unknown): string {
         </div>
       </div>
 
-      <div v-else class="qr-stage">
+      <div v-else-if="qrCodeDataUrl" class="legacy-login-qr">
         <img v-if="qrCodeDataUrl" :src="qrCodeDataUrl" alt="公众号平台登录二维码" />
-        <div v-else class="qr-placeholder">
-          <span>{{ isLoading ? '加载二维码' : '二维码' }}</span>
-        </div>
       </div>
 
-      <div class="login-status">
+      <div v-else class="legacy-login-placeholder">
+        <span>{{ isLoading ? '加载二维码' : '二维码' }}</span>
+      </div>
+
+      <div class="legacy-login-status">
         <strong>{{ statusMessage }}</strong>
         <span v-if="isPolling">正在检查扫码状态...</span>
         <span v-else-if="canFinalize">可以完成登录</span>
@@ -209,7 +204,7 @@ function formatError(error: unknown): string {
 
       <p v-if="errorMessage" class="login-error">{{ errorMessage }}</p>
 
-      <div class="login-actions">
+      <div class="legacy-login-actions">
         <button type="button" class="primary-button" :disabled="isLoading" @click="startLogin">
           {{ sessionId || qrCodeDataUrl ? '刷新二维码' : '开始登录' }}
         </button>

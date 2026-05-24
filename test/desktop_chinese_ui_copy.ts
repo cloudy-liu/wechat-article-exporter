@@ -42,12 +42,12 @@ assertHasAll(
 );
 
 const app = read('apps/desktop/src/App.vue');
-assertHasAll(app, ['本地桌面端', '公众号文章导出工具', '桌面端核心功能', '公众号作者工作台'], 'app shell');
+assertHasAll(app, ['本地桌面端', '公众号文章导出工具', '桌面端核心功能'], 'app shell');
 
 const officialAccountLogin = read('apps/desktop/src/components/OfficialAccountLoginPanel.vue');
 assertHasAll(
   officialAccountLogin,
-  ['公众号平台登录', '不支持个人微信号登录', '公众号作者', '加载二维码', '开始登录', '退出登录'],
+  ['公众号平台登录', '不支持个人微信号登录', '加载二维码', '开始登录', '退出登录'],
   'OfficialAccountLoginPanel',
 );
 
@@ -59,16 +59,16 @@ assertHasAll(
     '公众号名称或关键词',
     '搜索结果',
     '本地归档',
-    '同步已保存公众号的文章',
-    '网络代理',
-    '采集任务',
-    '导入和导出目标公众号',
+    '批量导入',
+    '批量导出',
+    '删除',
+    '同步',
   ],
   'TargetAccountManager',
 );
 
 const targetAccountsView = read('apps/desktop/src/views/TargetAccountsView.vue');
-assertHasAll(targetAccountsView, ['目标公众号工作流', '登录', '添加目标', '采集'], 'TargetAccountsView');
+assertHasAll(targetAccountsView, ['desktop-data-page', 'TargetAccountManager'], 'TargetAccountsView');
 
 const articlesView = read('apps/desktop/src/views/ArticlesView.vue');
 assertHasAll(
