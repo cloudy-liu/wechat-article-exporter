@@ -8,6 +8,13 @@ function read(relativePath: string): string {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
 }
 
+function readRule(source: string, selector: string): string {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const matches = [...source.matchAll(new RegExp(`${escapedSelector}\\s*\\{([^}]*)\\}`, 'gm'))];
+  assert.ok(matches.length > 0, `styles should include ${selector}`);
+  return matches.map(match => match[1]).join('\n');
+}
+
 const router = read('apps/desktop/src/router.ts');
 const app = read('apps/desktop/src/App.vue');
 const styles = read('apps/desktop/src/styles.css');
@@ -27,6 +34,11 @@ assert.doesNotMatch(router, /文章库/, 'desktop navigation should not rename t
 assert.match(app, /legacy-dashboard-shell/);
 assert.match(app, /legacy-sidebar/);
 assert.match(app, /legacy-topbar/);
+assert.doesNotMatch(
+  readRule(styles, '.legacy-sidebar .navigation'),
+  /flex:\s*1\b/,
+  'legacy sidebar navigation must stay compact instead of stretching items down the full sidebar',
+);
 
 for (const legacyShellMarker of [
   '.legacy-dashboard-shell',
@@ -54,11 +66,42 @@ assert.doesNotMatch(
 
 assert.match(targetAccountManager, /desktop-page-toolbar/);
 assert.match(targetAccountManager, /desktop-table-shell/);
-assert.match(targetAccountManager, /desktop-grid/);
+assert.match(targetAccountManager, /account-data-table/);
+assert.doesNotMatch(
+  targetAccountManager,
+  /class="workflow-table desktop-grid account-table"/,
+  'account management must use a compact account-specific table instead of the generic grid workflow table',
+);
+assert.doesNotMatch(
+  targetAccountManager,
+  /<div class="article-workflow-summary">/,
+  'account management should match the legacy AG Grid page by putting the table directly below the toolbar',
+);
 assert.doesNotMatch(
   targetAccountManager,
   /<section class="article-sync-panel"/,
   'account management should not embed article sync and task cards below the primary legacy account table',
+);
+
+for (const accountTableMarker of [
+  '.account-data-table',
+  '.account-data-table__head',
+  '.account-data-table__row',
+  '.account-description',
+  '.account-row-actions',
+]) {
+  assert.match(styles, new RegExp(accountTableMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+}
+
+assert.match(
+  readRule(styles, '.account-data-table__row'),
+  /height:\s*58px/,
+  'account table rows should keep a compact fixed height like the legacy AG Grid table',
+);
+assert.match(
+  readRule(styles, '.account-description'),
+  /-webkit-line-clamp:\s*2/,
+  'long account descriptions should be clamped instead of stretching rows or overlapping actions',
 );
 
 for (const source of [articlesView, singleArticleView, albumsView]) {

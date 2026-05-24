@@ -346,14 +346,24 @@ function positiveInteger(value: unknown, fallback: number): number {
         <button type="submit" class="primary-button" :disabled="isBusy">搜索</button>
       </form>
 
-      <div v-if="searchResults.length" class="workflow-table desktop-grid account-search-results" role="table" aria-label="搜索结果">
-        <div class="workflow-table__head" role="row">
+      <div
+        v-if="searchResults.length"
+        class="account-data-table account-data-table--search"
+        role="table"
+        aria-label="搜索结果"
+      >
+        <div class="account-data-table__head" role="row">
           <span role="columnheader">头像</span>
           <span role="columnheader">公众号</span>
           <span role="columnheader">简介</span>
           <span role="columnheader">操作</span>
         </div>
-        <article v-for="account in searchResults" :key="account.fakeid" class="workflow-table__row account-table-row" role="row">
+        <article
+          v-for="account in searchResults"
+          :key="account.fakeid"
+          class="account-data-table__row account-table-row"
+          role="row"
+        >
           <span class="account-avatar-cell">
             <img v-if="account.round_head_img" :src="account.round_head_img" alt="" />
           </span>
@@ -361,8 +371,8 @@ function positiveInteger(value: unknown, fallback: number): number {
             <strong>{{ account.nickname }}</strong>
             <span>{{ account.alias || account.fakeid }}</span>
           </div>
-          <p>{{ account.signature || '--' }}</p>
-          <div class="row-actions">
+          <p class="account-description">{{ account.signature || '--' }}</p>
+          <div class="account-row-actions">
             <button type="button" class="secondary-button" :disabled="isBusy" @click="addAccount(account)">
               添加
             </button>
@@ -376,15 +386,13 @@ function positiveInteger(value: unknown, fallback: number): number {
     <p v-if="errorMessage" class="manager-error">{{ errorMessage }}</p>
 
     <main class="desktop-table-shell account-table-shell" aria-label="本地归档公众号">
-      <div class="article-workflow-summary">
-        <strong>{{ accounts.length }}</strong>
-        <span>本地归档</span>
-        <strong>{{ selectedAccounts.length }}</strong>
-        <span>已选择</span>
-      </div>
-
-      <div v-if="accounts.length" class="workflow-table desktop-grid account-table" role="table" aria-label="本地归档">
-        <div class="workflow-table__head" role="row">
+      <div
+        v-if="accounts.length"
+        class="account-data-table account-data-table--accounts"
+        role="table"
+        aria-label="本地归档"
+      >
+        <div class="account-data-table__head" role="row">
           <label class="row-check">
             <input type="checkbox" :checked="allVisibleAccountsSelected" @change="toggleAllAccounts" />
             <span>选择</span>
@@ -395,7 +403,12 @@ function positiveInteger(value: unknown, fallback: number): number {
           <span role="columnheader">简介</span>
           <span role="columnheader">操作</span>
         </div>
-        <article v-for="account in accounts" :key="account.fakeid" class="workflow-table__row account-table-row" role="row">
+        <article
+          v-for="account in accounts"
+          :key="account.fakeid"
+          class="account-data-table__row account-table-row"
+          role="row"
+        >
           <label class="row-check">
             <input type="checkbox" :checked="isSelected(account)" @change="toggleAccountSelection(account)" />
             <span>{{ isSelected(account) ? '已选' : '选择' }}</span>
@@ -407,9 +420,9 @@ function positiveInteger(value: unknown, fallback: number): number {
             <strong>{{ account.nickname || account.fakeid }}</strong>
             <span>{{ account.alias || '--' }}</span>
           </div>
-          <span>{{ account.fakeid }}</span>
-          <p>{{ account.signature || '--' }}</p>
-          <div class="row-actions">
+          <span class="account-identifier">{{ account.fakeid }}</span>
+          <p class="account-description">{{ account.signature || '--' }}</p>
+          <div class="account-row-actions">
             <button type="button" class="secondary-button" :disabled="isBusy" @click="syncArticles(account)">
               同步
             </button>
