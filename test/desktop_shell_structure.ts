@@ -44,7 +44,7 @@ assert.match(main, /createApp\(App\)/);
 assert.match(main, /\.use\(router\)/);
 
 const router = read('apps/desktop/src/router.ts');
-for (const route of ['目标公众号', '文章库', '单篇文章', '合集下载', '设置']) {
+for (const route of ['公众号管理', '文章下载', '单篇文章下载', '合集下载', '设置']) {
   assert.match(router, new RegExp(route));
 }
 

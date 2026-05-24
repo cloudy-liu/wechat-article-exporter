@@ -129,6 +129,10 @@ onMounted(async () => {
   await refreshCollectionTasks();
 });
 
+async function handleAccountSelect(event: Event) {
+  await selectAccount((event.target as HTMLSelectElement).value);
+}
+
 async function refreshAccounts() {
   try {
     accounts.value = await invoke<TargetAccount[]>('list_target_accounts');
@@ -384,90 +388,71 @@ function formatError(error: unknown): string {
 </script>
 
 <template>
-  <section class="articles-workbench" aria-labelledby="articles-workbench-title">
-    <div class="manager-toolbar">
-      <div>
-        <p class="section-label">公众号文章工作流</p>
-        <h3 id="articles-workbench-title">文章库</h3>
+  <section class="articles-workbench desktop-data-page" aria-labelledby="articles-workbench-title">
+    <header class="desktop-page-toolbar" aria-label="文章下载操作区">
+      <div class="desktop-control-group">
+        <label class="desktop-field">
+          <span>公众号</span>
+          <select id="article-account-selector" v-model="selectedFakeid" :disabled="isBusy" @change="handleAccountSelect">
+            <option value="">请选择公众号</option>
+            <option v-for="account in accounts" :key="account.fakeid" :value="account.fakeid">
+              {{ account.nickname || account.fakeid }}
+            </option>
+          </select>
+        </label>
+        <label class="desktop-field">
+          <span>搜索文章</span>
+          <input
+            id="article-search-input"
+            v-model="articleSearchInput"
+            type="search"
+            placeholder="标题、摘要、作者或链接"
+            autocomplete="off"
+          />
+        </label>
       </div>
-      <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshAccounts">刷新</button>
-    </div>
+      <div class="desktop-bulk-toolbar">
+        <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshAccounts">刷新公众号</button>
+        <button type="button" class="secondary-button" :disabled="isBusy || !selectedFakeid" @click="refreshArticles">
+          刷新文章
+        </button>
+        <button type="button" class="secondary-button" :disabled="isBusy || filteredArticles.length === 0" @click="toggleAllFilteredArticles">
+          选择当前列表
+        </button>
+        <button
+          type="button"
+          class="secondary-button"
+          aria-label="下载选中文章"
+          :disabled="isBusy || selectedArticleIds.length === 0"
+          @click="downloadSelectedArticles"
+        >
+          抓取
+        </button>
+        <button
+          type="button"
+          class="secondary-button"
+          aria-label="导出选中 Markdown"
+          :disabled="isBusy || selectedArticleIds.length === 0"
+          @click="exportSelectedArticles('markdown')"
+        >
+          导出 Markdown
+        </button>
+        <button
+          type="button"
+          class="secondary-button"
+          aria-label="导出选中 HTML"
+          :disabled="isBusy || selectedArticleIds.length === 0"
+          @click="exportSelectedArticles('html')"
+        >
+          导出 HTML
+        </button>
+      </div>
+    </header>
 
     <p v-if="message" class="manager-message">{{ message }}</p>
     <p v-if="errorMessage" class="manager-error">{{ errorMessage }}</p>
 
-    <div class="articles-layout">
-      <section aria-label="目标公众号选择">
-        <div class="column-header">
-          <strong>目标公众号</strong>
-          <span>{{ accounts.length }}</span>
-        </div>
-        <div v-if="accounts.length" class="account-list">
-          <button
-            v-for="account in accounts"
-            :key="account.fakeid"
-            type="button"
-            class="account-choice"
-            :class="{ active: selectedFakeid === account.fakeid }"
-            :disabled="isBusy"
-            @click="selectAccount(account.fakeid)"
-          >
-            <img v-if="account.round_head_img" :src="account.round_head_img" alt="" />
-            <span>
-              <strong>{{ account.nickname }}</strong>
-              <small>{{ account.alias || account.fakeid }}</small>
-            </span>
-          </button>
-        </div>
-        <p v-else class="empty-state">还没有保存目标公众号。</p>
-      </section>
-
-      <section aria-label="文章列表">
-        <div class="article-table-toolbar">
-          <label>
-            <span>搜索文章</span>
-            <input
-              id="article-search-input"
-              v-model="articleSearchInput"
-              type="search"
-              placeholder="标题、摘要、作者或链接"
-              autocomplete="off"
-            />
-          </label>
-          <div class="article-bulk-actions">
-            <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshArticles">
-              刷新文章
-            </button>
-            <button type="button" class="secondary-button" :disabled="isBusy" @click="toggleAllFilteredArticles">
-              选择当前列表
-            </button>
-            <button
-              type="button"
-              class="secondary-button"
-              :disabled="isBusy || selectedArticleIds.length === 0"
-              @click="downloadSelectedArticles"
-            >
-              下载选中文章
-            </button>
-            <button
-              type="button"
-              class="secondary-button"
-              :disabled="isBusy || selectedArticleIds.length === 0"
-              @click="exportSelectedArticles('markdown')"
-            >
-              导出选中 Markdown
-            </button>
-            <button
-              type="button"
-              class="secondary-button"
-              :disabled="isBusy || selectedArticleIds.length === 0"
-              @click="exportSelectedArticles('html')"
-            >
-              导出选中 HTML
-            </button>
-          </div>
-        </div>
-
+    <section class="desktop-table-shell" aria-label="文章列表">
         <div class="article-workflow-summary">
           <strong>{{ filteredArticles.length }}</strong>
           <span>筛选结果</span>
@@ -497,7 +482,7 @@ function formatError(error: unknown): string {
           </div>
         </section>
 
-        <div v-if="filteredArticles.length" class="workflow-table" role="table" aria-label="已同步文章">
+        <div v-if="filteredArticles.length" class="workflow-table desktop-grid" role="table" aria-label="已同步文章">
           <div class="workflow-table__head" role="row">
             <span role="columnheader">选择</span>
             <span role="columnheader">文章</span>
@@ -532,8 +517,7 @@ function formatError(error: unknown): string {
           </article>
         </div>
         <p v-else class="empty-state">当前公众号和搜索条件下没有已同步文章。</p>
-      </section>
-    </div>
+    </section>
 
     <section class="article-preview-panel" aria-label="归档预览">
       <div class="manager-toolbar">

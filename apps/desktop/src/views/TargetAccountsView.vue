@@ -4,7 +4,7 @@ import TargetAccountManager from '../components/TargetAccountManager.vue';
 </script>
 
 <template>
-  <section class="target-accounts-view">
+  <section class="target-accounts-view desktop-data-page">
     <OfficialAccountLoginPanel />
     <TargetAccountManager />
 

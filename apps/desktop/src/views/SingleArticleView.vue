@@ -269,36 +269,43 @@ function formatError(error: unknown): string {
 </script>
 
 <template>
-  <section class="single-article-workbench" aria-labelledby="single-article-title">
-    <div class="manager-toolbar">
-      <div>
-        <p class="section-label">单篇文章工作流</p>
-        <h3 id="single-article-title">单篇文章</h3>
-      </div>
-      <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshSingleArticles">刷新</button>
-    </div>
-
-    <p v-if="message" class="manager-message">{{ message }}</p>
-    <p v-if="errorMessage" class="manager-error">{{ errorMessage }}</p>
-
-    <form class="single-article-form" @submit.prevent="saveSingleArticle">
-      <label>
+  <section class="single-article-workbench desktop-data-page" aria-labelledby="single-article-title">
+    <form class="single-article-form desktop-page-toolbar" @submit.prevent="saveSingleArticle">
+      <label class="desktop-field">
         <span>公众号文章链接</span>
         <input
           id="single-article-url-input"
           v-model="singleArticleUrl"
           type="url"
-          placeholder="https://mp.weixin.qq.com/s/..."
+          placeholder="请输入公众号文章链接"
           autocomplete="off"
           :aria-invalid="singleArticleUrl.length > 0 && !validateSingleArticleUrl()"
         />
       </label>
-      <label>
+      <label class="desktop-field single-article-title-field">
         <span>标题</span>
         <input v-model="singleArticleTitle" type="text" placeholder="可选本地标题" autocomplete="off" />
       </label>
-      <button type="submit" class="primary-button" :disabled="isBusy">保存文章</button>
+      <div class="desktop-bulk-toolbar">
+        <button type="submit" class="primary-button" aria-label="保存文章" :disabled="isBusy">添加</button>
+        <button type="button" class="secondary-button" :disabled="isBusy" @click="refreshSingleArticles">刷新</button>
+        <button type="button" class="secondary-button" :disabled="isBusy || !selectedArticle" @click="downloadSingleArticleHtml()">
+          抓取
+        </button>
+        <button type="button" class="secondary-button" :disabled="isBusy || !selectedArticle" @click="previewSingleArticle()">
+          预览
+        </button>
+        <button type="button" class="secondary-button" :disabled="isBusy || !selectedArticle" @click="exportSingleArticle('markdown')">
+          导出 Markdown
+        </button>
+        <button type="button" class="secondary-button" :disabled="isBusy || !selectedArticle" @click="exportSingleArticle('html')">
+          导出 HTML
+        </button>
+      </div>
     </form>
+
+    <p v-if="message" class="manager-message">{{ message }}</p>
+    <p v-if="errorMessage" class="manager-error">{{ errorMessage }}</p>
 
     <div class="single-article-action-bar" aria-label="已选单篇文章操作">
       <button type="button" class="secondary-button" :disabled="isBusy || !selectedArticle" @click="downloadSingleArticleHtml()">
@@ -316,27 +323,43 @@ function formatError(error: unknown): string {
     </div>
 
     <div class="single-article-layout">
-      <section aria-label="已保存单篇文章">
+      <section class="desktop-table-shell" aria-label="已保存单篇文章">
         <div class="column-header">
           <strong>已保存单篇文章</strong>
           <span>{{ singleArticles.length }}</span>
         </div>
 
-        <div v-if="singleArticles.length" class="single-article-list">
+        <div v-if="singleArticles.length" class="workflow-table desktop-grid single-article-grid" role="table">
+          <div class="workflow-table__head" role="row">
+            <span role="columnheader">选择</span>
+            <span role="columnheader">文章</span>
+            <span role="columnheader">状态</span>
+            <span role="columnheader">操作</span>
+          </div>
           <article
             v-for="article in singleArticles"
             :key="article.articleId"
-            class="single-article-row"
+            class="workflow-table__row single-article-row"
             :class="{ active: selectedArticleId === article.articleId }"
+            role="row"
           >
+            <label class="row-check">
+              <input
+                type="radio"
+                name="single-article-selection"
+                :checked="selectedArticleId === article.articleId"
+                @change="selectSingleArticle(article)"
+              />
+              <span>{{ selectedArticleId === article.articleId ? '已选' : '选择' }}</span>
+            </label>
             <button type="button" :disabled="isBusy" @click="selectSingleArticle(article)">
               <strong>{{ article.title }}</strong>
               <span>{{ article.sourceUrl }}</span>
-              <small>
-                {{ article.htmlFile ? 'HTML 已下载' : 'HTML 未下载' }}
-                {{ article.markdownFile ? ' - Markdown 已导出' : '' }}
-              </small>
             </button>
+            <small>
+              {{ article.htmlFile ? 'HTML 已下载' : 'HTML 未下载' }}
+              {{ article.markdownFile ? ' - Markdown 已导出' : '' }}
+            </small>
             <div class="row-actions">
               <button type="button" class="secondary-button" :disabled="isBusy" @click="downloadSingleArticleHtml(article)">
                 下载 HTML
