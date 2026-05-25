@@ -46,7 +46,7 @@ const defaultSettings: DesktopSettings = {
   },
   syncDownload: {
     historyLimit: 20,
-    pageSize: 5,
+    pageSize: 20,
     downloadConcurrency: 2,
   },
   networkProxy: null,
@@ -283,17 +283,13 @@ function formatError(error: unknown): string {
 </script>
 
 <template>
-  <section class="settings-workbench" aria-labelledby="settings-workbench-title">
-    <div class="manager-toolbar">
-      <div>
-        <p class="section-label">桌面端设置</p>
-        <h3 id="settings-workbench-title">本地采集配置</h3>
-      </div>
+  <section class="settings-workbench desktop-data-page" aria-label="本地设置">
+    <Teleport defer to="#topbar-actions">
       <div class="settings-toolbar-actions">
         <button type="button" class="secondary-button" :disabled="isBusy" @click="loadSettings">重新加载</button>
         <button type="button" class="primary-button" :disabled="isBusy" @click="saveSettings">保存设置</button>
       </div>
-    </div>
+    </Teleport>
 
     <p v-if="message" class="manager-message">{{ message }}</p>
     <p v-if="errorMessage" class="manager-error">{{ errorMessage }}</p>
@@ -333,12 +329,8 @@ function formatError(error: unknown): string {
         </div>
         <div class="settings-number-grid">
           <label>
-            <span>历史文章上限</span>
-            <input v-model.number="settings.syncDownload.historyLimit" type="number" min="1" max="500" />
-          </label>
-          <label>
             <span>同步分页数量</span>
-            <input v-model.number="settings.syncDownload.pageSize" type="number" min="1" max="50" />
+            <input v-model.number="settings.syncDownload.pageSize" type="number" min="1" max="20" />
           </label>
           <label>
             <span>下载并发数</span>

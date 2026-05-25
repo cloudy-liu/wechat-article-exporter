@@ -32,7 +32,6 @@ type ArticleListSyncRecord = {
 
 type DesktopSettings = {
   syncDownload?: {
-    historyLimit?: number;
     pageSize?: number;
   };
 };
@@ -45,8 +44,7 @@ const isSearchOpen = ref(false);
 const searchResults = ref<TargetAccount[]>([]);
 const accounts = ref<TargetAccount[]>([]);
 const selectedAccountIds = ref<string[]>([]);
-const maxItems = ref(20);
-const pageSize = ref(5);
+const pageSize = ref(20);
 const importFileRef = ref<HTMLInputElement | null>(null);
 const failedAvatarIds = ref<string[]>([]);
 
@@ -66,7 +64,6 @@ onMounted(async () => {
 async function loadDesktopSettings() {
   try {
     const settings = await invoke<DesktopSettings>('load_desktop_settings');
-    maxItems.value = positiveInteger(settings.syncDownload?.historyLimit, maxItems.value);
     pageSize.value = positiveInteger(settings.syncDownload?.pageSize, pageSize.value);
   } catch (error) {
     errorMessage.value = formatError(error);
@@ -196,7 +193,6 @@ async function syncArticles(account: TargetAccount) {
   try {
     const syncStatus = await invoke<ArticleListSyncRecord>('sync_target_account_articles', {
       fakeid: account.fakeid,
-      maxItems: maxItems.value,
       pageSize: pageSize.value,
     });
     message.value = `已同步 ${account.nickname} 的 ${syncStatus.fetched_count} 篇文章`;

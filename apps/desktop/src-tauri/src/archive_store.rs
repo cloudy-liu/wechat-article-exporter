@@ -140,7 +140,7 @@ impl Default for DesktopSyncDownloadSettings {
     fn default() -> Self {
         Self {
             history_limit: 20,
-            page_size: 5,
+            page_size: 20,
             download_concurrency: 2,
         }
     }

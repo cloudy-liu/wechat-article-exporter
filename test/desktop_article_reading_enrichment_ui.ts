@@ -14,14 +14,6 @@ const lib = read('apps/desktop/src-tauri/src/lib.rs');
 
 for (const command of [
   'load_article_reading_credential_status',
-  'enrich_selected_articles_with_reading_credential',
-]) {
-  assert.match(articlesView, new RegExp(command));
-  assert.match(lib, new RegExp(command));
-}
-
-for (const command of [
-  'load_article_reading_credential_status',
   'save_article_reading_credential',
   'mark_article_reading_credential_expired',
   'delete_article_reading_credential',
@@ -30,18 +22,11 @@ for (const command of [
   assert.match(lib, new RegExp(command));
 }
 
-for (const marker of [
-  '阅读凭证',
-  '高级可选',
-  '富集选中文章',
-  '阅读数',
-  '点赞',
-  '分享',
-  '留言',
-  '下载和导出不会被阅读凭证阻塞',
-]) {
-  assert.match(articlesView, new RegExp(marker));
-}
+assert.match(lib, /enrich_selected_articles_with_reading_credential/);
+assert.doesNotMatch(articlesView, /load_article_reading_credential_status/);
+assert.doesNotMatch(articlesView, /enrich_selected_articles_with_reading_credential/);
+assert.doesNotMatch(articlesView, /reading-enrichment-panel/);
+assert.doesNotMatch(articlesView, /富集选中文章/);
 
 for (const marker of [
   '阅读凭证',

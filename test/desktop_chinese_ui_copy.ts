@@ -95,8 +95,6 @@ const settingsView = read('apps/desktop/src/views/SettingsView.vue');
 assertHasAll(
   settingsView,
   [
-    '桌面端设置',
-    '本地采集配置',
     '导出偏好',
     '同步与下载',
     '网络代理',

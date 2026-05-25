@@ -52,7 +52,8 @@ const app = read('apps/desktop/src/App.vue');
 assert.match(app, /RouterLink/);
 assert.match(app, /navItems/);
 assert.match(app, /桌面端核心功能/);
-assert.match(app, /公众号作者工作台/);
+assert.match(app, /公众号文章导出工具/);
+assert.doesNotMatch(app, /公众号作者工作台/);
 for (const excluded of ['API', 'Public Proxy', 'Sponsorship', 'Developer']) {
   assert.doesNotMatch(app, new RegExp(excluded, 'i'));
 }

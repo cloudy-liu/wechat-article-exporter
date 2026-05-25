@@ -116,7 +116,7 @@ fn creates_default_desktop_settings_when_missing() {
     assert_eq!(settings.export.markdown, true);
     assert_eq!(settings.export.html, true);
     assert_eq!(settings.sync_download.history_limit, 20);
-    assert_eq!(settings.sync_download.page_size, 5);
+    assert_eq!(settings.sync_download.page_size, 20);
     assert_eq!(settings.sync_download.download_concurrency, 2);
     assert_eq!(settings.network_proxy, None);
 }

@@ -17,14 +17,25 @@ for (const command of [
   'pause_collection_task',
   'cancel_collection_task',
 ]) {
-  assert.match(manager, new RegExp(command));
   assert.match(lib, new RegExp(command));
 }
 
-assert.match(manager, /采集任务/);
-assert.match(manager, /重试失败项/);
-assert.match(manager, /accountArticleSync/);
-assert.match(manager, /succeeded_items/);
-assert.match(manager, /failed_items/);
-assert.match(manager, /waiting_items/);
-assert.match(manager, /running_items/);
+for (const marker of [
+  'list_collection_tasks',
+  'retry_failed_collection_task_items',
+  'pause_collection_task',
+  'cancel_collection_task',
+  '采集任务',
+  '重试失败项',
+  'accountArticleSync',
+  'succeeded_items',
+  'failed_items',
+  'waiting_items',
+  'running_items',
+]) {
+  assert.doesNotMatch(
+    manager,
+    new RegExp(marker),
+    'account management should keep the legacy primary table layout without embedding collection task panels',
+  );
+}

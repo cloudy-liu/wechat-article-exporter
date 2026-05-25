@@ -1537,7 +1537,8 @@ body {
 .legacy-topbar {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   min-height: 60px;
   border-bottom: 1px solid #e2e8f0;
   padding: 0 24px;
@@ -1558,6 +1559,14 @@ body {
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
+}
+
+.legacy-topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .legacy-dashboard-shell .workspace-main {
@@ -2066,7 +2075,45 @@ body {
 }
 
 .settings-grid {
-  padding: 12px;
+  padding: 40px 16px;
+}
+
+.settings-workbench {
+  align-content: start;
+}
+
+.settings-workbench > .manager-message,
+.settings-workbench > .manager-error {
+  margin: 12px 16px 0;
+}
+
+.settings-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.settings-panel {
+  border-color: #e2e8f0;
+  border-radius: 0;
+  background: #ffffff;
+}
+
+.settings-panel input[type='text'],
+.settings-panel input[type='url'],
+.settings-panel input[type='password'],
+.settings-panel input[type='number'] {
+  border-color: #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.settings-panel--danger {
+  border-color: #e2e8f0;
+  background: #ffffff;
 }
 
 @media (max-width: 1120px) {

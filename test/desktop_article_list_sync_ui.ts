@@ -11,6 +11,7 @@ function read(relativePath: string): string {
 const manager = read('apps/desktop/src/components/TargetAccountManager.vue');
 const articlesView = read('apps/desktop/src/views/ArticlesView.vue');
 const lib = read('apps/desktop/src-tauri/src/lib.rs');
+const articleListSync = read('apps/desktop/src-tauri/src/article_list_sync.rs');
 
 for (const command of [
   'load_desktop_settings',
@@ -27,12 +28,27 @@ for (const command of [
   assert.match(lib, new RegExp(command));
 }
 
-assert.match(manager, /maxItems/);
 assert.match(manager, /pageSize/);
 assert.match(manager, /syncDownload/);
 assert.match(manager, /syncArticles/);
 assert.match(manager, /syncStatus/);
 assert.match(manager, /同步/);
+assert.doesNotMatch(
+  manager,
+  /maxItems|historyLimit/,
+  'official-account article synchronization should not be capped by the desktop history limit',
+);
+assert.doesNotMatch(
+  lib,
+  /max_items/,
+  'sync_target_account_articles should request all available pages instead of accepting a max-items cap',
+);
+assert.doesNotMatch(
+  articleListSync,
+  /max_items|remaining\s*=|fetched_count\s*>=\s*requested_limit/,
+  'article list synchronization should continue paging until WeChat returns an empty page',
+);
+assert.match(articleListSync, /page\.articles\.is_empty\(\)/);
 
 assert.match(articlesView, /list_target_articles/);
 assert.match(articlesView, /refreshArticles/);

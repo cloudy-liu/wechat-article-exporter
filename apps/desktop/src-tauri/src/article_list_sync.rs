@@ -18,6 +18,7 @@ const MP_REFERER: &str = "https://mp.weixin.qq.com/";
 const MP_ORIGIN: &str = "https://mp.weixin.qq.com";
 const MP_USER_AGENT: &str =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 WAE/1.0";
+const ARTICLE_LIST_PAGE_SIZE_LIMIT: u32 = 20;
 
 pub type ArticleListSyncResult<T> = Result<T, ArticleListSyncError>;
 
@@ -81,6 +82,7 @@ pub struct ArticleListSyncRequest {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArticleListSyncPage {
     pub total_count: Option<u32>,
+    pub message_count: u32,
     pub articles: Vec<TargetArticleInput>,
 }
 
@@ -109,15 +111,14 @@ where
         &self,
         archive_store: &ArchiveStore,
         fakeid: &str,
-        max_items: u32,
         page_size: u32,
     ) -> ArticleListSyncResult<ArticleListSyncRecord> {
         let login_secret = self.login_secret()?;
-        let requested_limit = max_items.max(1);
-        let page_size = page_size.max(1);
+        let page_size = page_size.clamp(1, ARTICLE_LIST_PAGE_SIZE_LIMIT);
         let mut begin = 0_u32;
         let mut total_count = None;
         let mut fetched_count = 0_u32;
+        let mut requested_count = 0_u32;
         let task = archive_store.create_collection_task(
             CollectionTaskType::AccountArticleSync,
             Some(fakeid),
@@ -126,7 +127,6 @@ where
                 item_type: "article-list-sync".to_string(),
                 payload_json: serde_json::json!({
                     "fakeid": fakeid,
-                    "maxItems": requested_limit,
                     "pageSize": page_size
                 })
                 .to_string(),
@@ -140,16 +140,10 @@ where
         )?;
 
         loop {
-            if fetched_count >= requested_limit {
-                break;
-            }
-
-            let remaining = requested_limit - fetched_count;
-            let count = remaining.min(page_size);
             let page = match self.transport.fetch_page(ArticleListSyncRequest {
                 fakeid: fakeid.to_string(),
                 begin,
-                count,
+                count: page_size,
                 token: login_secret.token.clone(),
                 cookie_header: login_secret.cookie_header.clone(),
             }) {
@@ -163,7 +157,7 @@ where
                     )?;
                     archive_store.record_article_list_sync(
                         fakeid,
-                        requested_limit,
+                        requested_count,
                         fetched_count,
                         total_count,
                         ArticleListSyncStatus::Failed,
@@ -173,25 +167,28 @@ where
                 }
             };
 
-            total_count = page.total_count.or(total_count);
+            total_count = total_count.or(page.total_count);
             if page.articles.is_empty() {
                 break;
             }
 
-            for article in page.articles.into_iter().take(count as usize) {
+            let message_count = page.message_count;
+            for article in page.articles {
                 archive_store.upsert_target_article(&article)?;
                 fetched_count += 1;
-                if fetched_count >= requested_limit {
-                    break;
-                }
             }
 
-            begin += count;
+            requested_count += message_count;
+            if message_count == 0 {
+                break;
+            }
+
+            begin += message_count;
         }
 
         let record = archive_store.record_article_list_sync(
             fakeid,
-            requested_limit,
+            requested_count,
             fetched_count,
             total_count,
             ArticleListSyncStatus::Completed,
@@ -284,6 +281,7 @@ pub fn parse_appmsgpublish_response(
     let publish_page = response.publish_page.unwrap_or_else(|| "{}".to_string());
     let publish_page: WeChatPublishPage = serde_json::from_str(&publish_page)?;
     let mut articles = Vec::new();
+    let mut message_count = 0_u32;
 
     for item in publish_page.publish_list {
         if item.publish_info.trim().is_empty() {
@@ -292,12 +290,16 @@ pub fn parse_appmsgpublish_response(
 
         let publish_info: WeChatPublishInfo = serde_json::from_str(&item.publish_info)?;
         for article in publish_info.appmsgex {
+            if article.itemidx.unwrap_or_default() == 1 {
+                message_count += 1;
+            }
             articles.push(article.into_target_article(fakeid));
         }
     }
 
     Ok(ArticleListSyncPage {
         total_count: publish_page.total_count,
+        message_count,
         articles,
     })
 }

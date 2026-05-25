@@ -107,6 +107,7 @@ fn parses_representative_appmsgpublish_response() {
     let page = parse_appmsgpublish_response("fakeid-1", raw).expect("parse article list response");
 
     assert_eq!(page.total_count, Some(2));
+    assert_eq!(page.message_count, 2);
     assert_eq!(page.articles.len(), 2);
     assert_eq!(page.articles[0].article_id, "aid-1");
     assert_eq!(page.articles[0].target_account_id, "fakeid-1");
@@ -118,7 +119,7 @@ fn parses_representative_appmsgpublish_response() {
 }
 
 #[test]
-fn sync_uses_stored_login_secret_persists_limited_articles_and_records_completion() {
+fn sync_uses_stored_login_secret_persists_every_page_until_wechat_returns_empty() {
     let temp = tempdir().expect("temp dir");
     let store = ArchiveStore::open(ArchiveStoreConfig {
         database_path: temp.path().join("archive.sqlite"),
@@ -127,28 +128,49 @@ fn sync_uses_stored_login_secret_persists_limited_articles_and_records_completio
     .expect("open archive store");
     let backend = MemorySecretBackend::default();
     save_login_secret(&backend);
-    let transport = FixtureArticleListSyncTransport::new().with_page(ArticleListSyncPage {
-        total_count: Some(2),
-        articles: vec![
-            target_article("fakeid-1", "aid-1", "First Article", 1_700_000_010),
-            target_article("fakeid-1", "aid-2", "Second Article", 1_700_000_020),
-        ],
-    });
+    let transport = FixtureArticleListSyncTransport::new()
+        .with_page(ArticleListSyncPage {
+            total_count: Some(2),
+            message_count: 1,
+            articles: vec![
+                target_article_with_itemidx("fakeid-1", "aid-1", "First Article", 1, 1_700_000_010),
+                target_article_with_itemidx(
+                    "fakeid-1",
+                    "aid-2",
+                    "Second Article",
+                    2,
+                    1_700_000_020,
+                ),
+            ],
+        })
+        .with_page(ArticleListSyncPage {
+            total_count: Some(2),
+            message_count: 1,
+            articles: vec![target_article_with_itemidx(
+                "fakeid-1",
+                "aid-3",
+                "Third Article",
+                1,
+                1_700_000_030,
+            )],
+        });
     let client = ArticleListSyncClient::new(transport.clone(), SecretStore::new(backend));
 
     let outcome = client
-        .sync(&store, "fakeid-1", 1, 5)
+        .sync(&store, "fakeid-1", 2)
         .expect("sync target article list");
 
     assert_eq!(outcome.status, ArticleListSyncStatus::Completed);
-    assert_eq!(outcome.requested_limit, 1);
-    assert_eq!(outcome.fetched_count, 1);
+    assert_eq!(outcome.requested_limit, 2);
+    assert_eq!(outcome.fetched_count, 3);
     assert_eq!(outcome.total_count, Some(2));
     let stored_articles = store
         .list_target_articles("fakeid-1")
         .expect("list synced articles");
-    assert_eq!(stored_articles.len(), 1);
-    assert_eq!(stored_articles[0].article_id, "aid-1");
+    assert_eq!(stored_articles.len(), 3);
+    assert_eq!(stored_articles[0].article_id, "aid-3");
+    assert_eq!(stored_articles[1].article_id, "aid-2");
+    assert_eq!(stored_articles[2].article_id, "aid-1");
     let latest = store
         .latest_article_list_sync("fakeid-1")
         .expect("load latest sync")
@@ -156,12 +178,16 @@ fn sync_uses_stored_login_secret_persists_limited_articles_and_records_completio
     assert_eq!(latest.status, ArticleListSyncStatus::Completed);
 
     let calls = transport.calls.lock().expect("read transport calls");
-    assert_eq!(calls.len(), 1);
+    assert_eq!(calls.len(), 3);
     assert_eq!(calls[0].fakeid, "fakeid-1");
     assert_eq!(calls[0].begin, 0);
-    assert_eq!(calls[0].count, 1);
+    assert_eq!(calls[0].count, 2);
     assert_eq!(calls[0].token, "token-123");
     assert_eq!(calls[0].cookie_header, "wxuin=1; rand_info=secret");
+    assert_eq!(calls[1].begin, 1);
+    assert_eq!(calls[1].count, 2);
+    assert_eq!(calls[2].begin, 2);
+    assert_eq!(calls[2].count, 2);
 }
 
 #[test]
@@ -176,6 +202,7 @@ fn sync_records_persistent_collection_task_status() {
     save_login_secret(&backend);
     let transport = FixtureArticleListSyncTransport::new().with_page(ArticleListSyncPage {
         total_count: Some(1),
+        message_count: 1,
         articles: vec![target_article(
             "fakeid-1",
             "aid-1",
@@ -186,7 +213,7 @@ fn sync_records_persistent_collection_task_status() {
     let client = ArticleListSyncClient::new(transport, SecretStore::new(backend));
 
     client
-        .sync(&store, "fakeid-1", 20, 5)
+        .sync(&store, "fakeid-1", 5)
         .expect("sync target article list");
 
     let tasks = store
@@ -219,7 +246,7 @@ fn sync_failure_records_retryable_error_information() {
     );
 
     let error = client
-        .sync(&store, "fakeid-1", 20, 5)
+        .sync(&store, "fakeid-1", 5)
         .expect_err("sync should fail");
 
     assert!(error.to_string().contains("upstream timeout"));
@@ -229,7 +256,7 @@ fn sync_failure_records_retryable_error_information() {
         .expect("sync exists");
     assert_eq!(latest.status, ArticleListSyncStatus::Failed);
     assert_eq!(latest.error_message.as_deref(), Some("upstream timeout"));
-    assert_eq!(latest.requested_limit, 20);
+    assert_eq!(latest.requested_limit, 0);
     let tasks = store
         .list_collection_tasks()
         .expect("list collection tasks");
@@ -248,6 +275,16 @@ fn target_article(
     title: &str,
     create_time: i64,
 ) -> TargetArticleInput {
+    target_article_with_itemidx(target_account_id, article_id, title, 1, create_time)
+}
+
+fn target_article_with_itemidx(
+    target_account_id: &str,
+    article_id: &str,
+    title: &str,
+    itemidx: i64,
+    create_time: i64,
+) -> TargetArticleInput {
     TargetArticleInput {
         article_id: article_id.to_string(),
         target_account_id: target_account_id.to_string(),
@@ -257,7 +294,7 @@ fn target_article(
         author_name: "Fixture Author".to_string(),
         cover: format!("https://example.test/{article_id}.jpg"),
         appmsgid: 100,
-        itemidx: 1,
+        itemidx,
         item_show_type: 0,
         create_time,
         update_time: create_time + 1,
@@ -319,6 +356,7 @@ impl ArticleListSyncTransport for FixtureArticleListSyncTransport {
         if pages.is_empty() {
             Ok(ArticleListSyncPage {
                 total_count: Some(0),
+                message_count: 0,
                 articles: Vec::new(),
             })
         } else {

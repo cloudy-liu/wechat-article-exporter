@@ -30,8 +30,15 @@ assert.match(loginPanel, /不支持个人微信号登录/);
 assert.match(loginPanel, /qrCodeDataUrl/);
 assert.match(loginPanel, /sessionId/);
 
+const app = read('apps/desktop/src/App.vue');
 const targetAccountsView = read('apps/desktop/src/views/TargetAccountsView.vue');
-assert.match(targetAccountsView, /OfficialAccountLoginPanel/);
+assert.match(app, /OfficialAccountLoginPanel/);
+assert.match(app, /legacy-sidebar/);
+assert.doesNotMatch(
+  targetAccountsView,
+  /OfficialAccountLoginPanel/,
+  'official account login should live in the legacy sidebar footer, not inside the account management page body',
+);
 
 const router = read('apps/desktop/src/router.ts');
 assert.match(router, /TargetAccountsView/);

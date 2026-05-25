@@ -132,7 +132,6 @@ fn sync_target_account_articles(
     app: tauri::AppHandle,
     state: tauri::State<ArticleListSyncState>,
     fakeid: String,
-    max_items: u32,
     page_size: u32,
 ) -> Result<ArticleListSyncRecord, String> {
     let archive_store = open_archive_store(&app)?;
@@ -142,7 +141,7 @@ fn sync_target_account_articles(
     );
 
     client
-        .sync(&archive_store, &fakeid, max_items, page_size)
+        .sync(&archive_store, &fakeid, page_size)
         .map_err(|error| error.to_string())
 }
 

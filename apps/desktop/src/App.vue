@@ -34,6 +34,7 @@ const navItems = computed(() => routes.filter(item => item.path !== '/' && item.
     <main class="workspace">
       <header class="legacy-topbar workspace-header">
         <h2>{{ String(route.name || '公众号管理') }}</h2>
+        <div id="topbar-actions" class="legacy-topbar-actions" />
       </header>
 
       <RouterView />
